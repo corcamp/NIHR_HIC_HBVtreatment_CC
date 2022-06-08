@@ -1,0 +1,1596 @@
+---
+title: "Cori HBV treatment"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+require("knitr")
+knitr::opts_chunk$set(echo = TRUE)
+opts_knit$set(root.dir = "~/Cori_cohortExtraction")
+
+```
+
+
+## install packages and initialisation codes
+
+
+```{r initialisation_clean, include=FALSE}
+# clear the enviroment
+rm(list = ls())
+
+# clear the console
+cat("\014")
+
+# install R packages
+packages <- c('tidyverse',"plyr", 'anytime','lubridate','tableone','survminer','data.table','dplyr','stringr','sqldf', 'reticulate', 'Rlabkey','ids','survival','ggplot2','zoo', 'gridExtra','cowplot','Rlabkey', 'ggfortify','ggpubr')
+install.packages(setdiff(packages, rownames(installed.packages())))
+
+
+# clear the enviroment
+rm(list = ls())
+
+# clear the console
+cat("\014")
+
+# you need to change the path as appropriate 
+setwd("~/Cori_cohortExtraction")
+
+
+##load packages
+library(zoo)
+library(ggplot2)
+library(ggfortify)
+library(ggpubr)
+library(survminer)
+library(reticulate)
+library(plyr)
+library(Rlabkey)
+library(sqldf)
+library(tidyverse)
+library(lubridate)
+library(tableone)
+library(data.table)
+library(dplyr)
+library(stringr)
+library(anytime)
+library(survival)
+library(ids)
+library(cowplot)
+library(Rlabkey)
+
+# initialisation to fix the certificate error 
+labkey.setCurlOptions(ssl_verifypeer=FALSE)
+
+# initialisation to fix the certificate error 
+labkey.setCurlOptions(ssl_verifypeer=FALSE)
+
+source("codes/s1_data_import_and_preprocessing.R")
+source('codes/s2_get_chbv_cohort_each_site.R')
+
+```
+
+
+## clean and rename column
+
+```{r clean, include=FALSE}
+##rename variables
+colnames(ALT)
+names(ALT)[2] <- "ALT_units"
+names(ALT)[4] <- "ALT_date_created"
+names(ALT)[5] <- "ALT_last_updated"
+names(ALT)[6] <- "ALT_lower_reference_value_numerical"
+names(ALT)[7] <- "ALT_result_numerical"
+names(ALT)[8] <- "ALT_result"
+names(ALT)[9] <- "ALT_date_time"
+names(ALT)[10] <- "ALT_upper_reference_value"
+names(ALT)[11] <- "ALT_lower_reference_value"
+ALT <- ALT[,-c("test_name_id")]
+names(ALT)[12] <- "ALT_upper_reference_value_numerical"
+
+names(AST)[2] <- "AST_units"
+names(AST)[4] <- "AST_date_created"
+names(AST)[5] <- "AST_last_updated"
+names(AST)[6] <- "AST_lower_reference_value_numerical"
+names(AST)[7] <- "AST_result_numerical"
+names(AST)[8] <- "AST_result"
+names(AST)[9] <- "AST_date_time"
+names(AST)[10] <- "AST_upper_reference_value"
+names(AST)[11] <- "AST_lower_reference_value"
+AST <- AST[,-c("test_name_id")]
+names(AST)[12] <- "AST_upper_reference_value_numerical"                                  
+
+names(hcv_tests)[12] <- "hep_c_test_name_id"
+names(hcv_tests)[2] <- "hep_c_units"
+names(hcv_tests)[4] <- "hep_c_date_created"
+names(hcv_tests)[5] <- "hep_c_last_updated" ##change
+names(hcv_tests)[6] <- "hep_c_lower_reference_value_numerical"
+names(hcv_tests)[7] <- "hep_c_result_numerical"
+names(hcv_tests)[8] <- "hep_c_result"
+names(hcv_tests)[9] <- "hep_c_date_time"
+names(hcv_tests)[10] <- "hep_c_upper_reference_value"
+names(hcv_tests)[11] <- "hep_c_lower_reference_value"
+names(hcv_tests)[13] <- "hep_c_upper_reference_value_numerical"
+
+hcv_tests <- subset(hcv_tests, hcv_tests$hep_c_test_name_id != "HDVL") 
+hcv_tests <- subset(hcv_tests, hcv_tests$hep_c_test_name_id != "HDVG") 
+
+names(hdv_tests)[12] <- "hep_d_test_name_id"
+names(hdv_tests)[2] <- "hep_d_units"
+names(hdv_tests)[4] <- "hep_d_date_created"
+names(hdv_tests)[5] <- "hep_d_last_updated" ##change
+names(hdv_tests)[6] <- "hep_d_lower_reference_value_numerical"
+names(hdv_tests)[7] <- "hep_d_result_numerical"
+names(hdv_tests)[8] <- "hep_d_result"
+names(hdv_tests)[9] <- "hep_d_date_time"
+names(hdv_tests)[10] <- "hep_d_upper_reference_value"
+names(hdv_tests)[11] <- "hep_d_lower_reference_value"
+names(hdv_tests)[13] <- "hep_d_upper_reference_value_numerical"
+
+names(PL)[2] <- "PL_units"
+names(PL)[4] <- "PL_date_created"
+names(PL)[5] <- "PL_last_updated"
+names(PL)[6] <- "PL_lower_reference_value_numerical"
+names(PL)[7] <- "PL_result_numerical"
+names(PL)[8] <- "PL_result"
+names(PL)[9] <- "PL_date_time"
+names(PL)[10] <- "PL_upper_reference_value"
+names(PL)[11] <- "PL_lower_reference_value"
+names(PL)[13] <- "PL_upper_reference_value_numerical"
+PL <- PL[,-c("test_name_id")]
+
+colnames(demographics)
+demographics <- demographics[,-c(3,5)]
+colnames(hep_b_tests)
+hep_b_tests <- hep_b_tests[,-c(4,5)]
+names(hep_b_tests)[2] <- "hbv_test_units"
+names(hep_b_tests)[4] <- "hbv_result_numerical"
+names(hep_b_tests)[6] <- "hbv_upper_reference_value"
+names(hep_b_tests)[7] <- "hbv_lower_reference_value"
+names(hep_b_tests)[8] <- "hbv_test_name_id"
+names(hep_b_tests)[9] <- "hbv_upper_reference_value_numerical"
+colnames(hbv_treatment)
+hbv_treatment <- hbv_treatment[,-c(5,6)]
+names(hbv_treatment)[5] <- "treat_end_date"
+names(hbv_treatment)[6] <- "treat_start_date"
+colnames(fibroscan)
+names(fibroscan)[2] <- "fibro_units_id"
+names(fibroscan)[3] <- "fibro_date"
+names(fibroscan)[6] <- "fibro_method_id"
+
+demographics <- as.data.table(demographics)
+hep_b_tests <- as.data.table(hep_b_tests)
+hbv_treatment_sites <- hbv_treatment[chbv_ids_sites, on="study_subject_id"]
+fibroscan <- as.data.table(fibroscan)
+test <-chbv_ids_sites[(site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial"),nomatch=NULL]
+nrow(test)
+test$index.date <- as.Date("2018-03-01")
+##get chronic HBV IDs
+hbv_ids <- test$study_subject_id
+hbv_ids_ox <- test[site_name=="Oxford" ,study_subject_id]
+hcv_tests <- hcv_tests[study_subject_id %in% hbv_ids] ## get HCV tests in CHB patients
+hdv_tests <- hdv_tests[study_subject_id %in% hbv_ids] ## get HDV tests in CHB patients
+setwd("~/Cori_cohortExtraction")
+
+
+```
+
+## combine data files
+```{r merge_data, include=FALSE, results="hide}
+index.date <- as.Date("2018-03-01")
+index.plus_year <- as.Date("2019-03-01")
+COVstart.date <- as.Date("2020-03-01")
+end.date <- as.Date("2021-03-01")
+labs.date <- as.Date("2017-03-01")
+
+#-----------------
+# add demographics data
+#-----------------
+
+hbv_demog <- demographics[study_subject_id %in% chbv_ids]
+hbv_demog$gender_id[hbv_demog$gender_id==1] <- "m" ##recode sex
+hbv_demog$gender_id[hbv_demog$gender_id==2] <- "f"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="99"] <- NA
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="A"] <- "British"                ##recode ethnicity
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="B"] <- "Irish"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="C"] <- "other_white"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="D"] <- "white_black_caribbean"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="E"] <- "white_black_african"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="F"] <- "white_asian"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="G"] <- "other_mixed"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="H"] <- "indian"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="J"] <- "pakistani"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="K"] <- "bangladeshi"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="L"] <- "other_asian"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="M"] <- "caribbean"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="N"] <- "african"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="P"] <- "other_black"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="R"] <- "chinese"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="S"] <- "other_ethnic_group"
+hbv_demog$ethnic_code_id[hbv_demog$ethnic_code_id=="Z"] <- "not_stated"
+table(hbv_demog$ethnic_code_id)
+hbv_demog <- hbv_demog[,ethnic_collapse := ifelse(ethnic_code_id %in% c("British", "Irish", "other_white"), "white", ethnic_code_id)][,ethnic_collapse := ifelse(ethnic_code_id %in% c("indian", "pakistani", "bangladeshi", "other_asian", "chinese"), "Asian", ethnic_collapse)][,ethnic_collapse := ifelse(ethnic_code_id %in% c("caribbean", "african", "other_black"), "Black", ethnic_collapse)][,ethnic_collapse := ifelse(ethnic_code_id %in% "white_asian", "Mixed_Asian", ethnic_collapse)][,ethnic_collapse := ifelse(ethnic_code_id %in% c("white_black_caribbean", "white_black_african"), "Mixed_Black", ethnic_collapse)][,ethnic_collapse := ifelse(ethnic_code_id %in% c("other_mixed", "other_ethnic_group"), "Other", ethnic_collapse)][,ethnic_collapse := ifelse(ethnic_code_id %in% c("not_stated"), "Not_stated", ethnic_collapse)]
+table(hbv_demog$ethnic_collapse)
+hbv_demog$index.date <- as.Date("2018-03-01")
+hbv_demog$date_of_birth <- lubridate::ymd(hbv_demog$year_of_birth, truncated = 2L)
+summary(hbv_demog$year_of_birth)
+summary(hbv_demog$date_of_birth)
+hbv_demog[, age_days := as.duration(lubridate::date(date_of_birth) %--% lubridate::date(index.date))/ddays(1)][, age_baseline := age_days/365] ##calculate age at baseline
+
+hbv_demog <- hbv_demog[,-c("id", "age_days", "country_of_birth_id", "index.date", "year_of_birth")]
+YOB_sex <- hbv_demog[,c("study_subject_id","gender_id","age_baseline")]
+##test2<-test[hbv_demog, on='study_subject_id']
+
+
+#-----------------
+# get earliest record of patient treatment status
+#-----------------
+hbv_treat <- hbv_treatment
+##names(hbv_treat)[6] <- "treat_date_created"
+##names(hbv_treat)[7] <- "treat_last_update"
+##names(hbv_treat)[8] <- "treat_end_date"
+##names(hbv_treat)[9] <- "treat_start_date"
+table(hbv_treat$regimen_id)
+table(hbv_treat$hbv_drug_name)
+hbv_treat <- hbv_treat[study_subject_id %in% hbv_ids] ## get hbv treatment data only for CHB patient ids
+hbv_treat$index.date <- as.Date("2018-03-01")
+test$index.date <- as.Date("2018-03-01")
+setkeyv(test, c("study_subject_id", "index.date"))
+hbv_treat <- hbv_treat[, treat_start_date1 := treat_start_date]
+setkeyv(hbv_treat, c("study_subject_id", "treat_start_date1"))
+earliest_reg <- hbv_treat[order(treat_start_date, study_subject_id), .SD[1], by=study_subject_id] ##get earliest treatment date/regimen for each patient
+earliest_reg <- earliest_reg[,-c("id", "site_name","index.date", "treat_start_date1","treat_date_created")] ##remove unused columns
+names(earliest_reg)[2:5] <- c("earliest_regimen_id","earliest_hbv_drug_name","earliest_treat_end_date","earliest_treat_start_date") ##rename columns
+hbv_treat <- earliest_reg[hbv_treat, on="study_subject_id"]
+hbv_treat <- hbv_treat[,-c("id", "treat_start_date1", "index.date")]
+
+hbv_treat <- hbv_treat[, earliest_treat_start_date1 := earliest_treat_start_date]
+hbv_treat[, unique_treatments := length(unique(regimen_id)), by="study_subject_id"]
+##setkeyv(hbv_treat, c("study_subject_id", "earliest_treat_start_date1"))
+##setkeyv(test2, c("study_subject_id", "index.date"))
+test3<-hbv_treat[hbv_demog, on="study_subject_id"] ##combine hbv_demog with hbv treatment data
+test3[, rowCount := .N, by = study_subject_id]
+##View(test3[order(earliest_treat_start_date,study_subject_id,rowCount),c("study_subject_id","earliest_regimen_id","earliest_treat_start_date","regimen_id","treat_start_date","site_name", "rowCount")])
+test3 <- test3[order(treat_start_date),.SD[1], by="study_subject_id"] ##retain the row that has the earliest available treatment info for each patient
+test3<- test3[,-c("earliest_treat_start_date1", "i.site_name")] ##remove dummy variables
+summary(test3$earliest_treat_start_date) ##latest treatment start date is 2021-02-17
+length(which((as.Date(test3$earliest_treat_start_date) > index.date) &  (as.Date(test3$earliest_treat_start_date) < COVstart.date))) ## 544 patients started treatment during study period
+length(which((as.Date(test3$earliest_treat_start_date) > COVstart.date) &  (as.Date(test3$earliest_treat_start_date) < end.date))) ## 31 patients started treatment COV period
+test3<- test3[, switched_treat := ifelse(unique_treatments>1 & earliest_treat_start_date < index.date & (treat_start_date > index.date & treat_start_date < COVstart.date), "switched", NA)] ##patients who switched treatment during the study period
+table(test3$switched_treat)  ## 25 patients switched
+hbv_ids_switched <- test3[switched_treat=="switched",study_subject_id]
+test3[, age_days_treat := as.duration(lubridate::date(date_of_birth) %--% lubridate::date(earliest_treat_start_date))/ddays(1)][, age_treat_start := age_days_treat/365] ##calculate age at treatment initiation
+
+
+#-----------------
+# get fibroscan data for CHB patients i) AT BASELINE ii) during pre-COVID study period, and iii) before treatment initiation. Combine data with test3 (use rolling join to roll nearest fibroscan forward to index date)
+#-----------------
+hbv_fibro <- fibroscan[study_subject_id %in% hbv_ids]
+hbv_fibro <- hbv_fibro[,c("fibro_date","study_subject_id","liver_stiffness")]
+names(hbv_fibro)[3] <- "liver_stiffness_kpa"
+summary(hbv_fibro$fibro_date)
+hbv_fibro <- setDT(hbv_fibro)
+hbv_fibro <- hbv_fibro[,fibro_during_preCOV_period := ifelse(fibro_date > as.Date(index.date), "fibro_during_preCOV_period", NA)]
+table(hbv_fibro$fibro_during_preCOV_period) ##52 patients had record of fibroscan during the study (preCOV) period; latest fibroscan date is "2019-11-13" , so no fibroscans were conducted during the COV period
+test3$index.date <- as.Date(index.date)
+setkeyv(test3, c("study_subject_id", "index.date"))
+hbv_fibro <- hbv_fibro[, fibro_dat1 := fibro_date]
+setkeyv(hbv_fibro, c("study_subject_id", "fibro_dat1"))
+test4 <- hbv_fibro[test3, roll=T]
+test4 <- test4[,int_fibro := as.duration(lubridate::date(fibro_date) %--% lubridate::date(index.date))/ddays(1)][, recent_fibro := ifelse((int_fibro<=366 & int_fibro>0) ,"recent_fibro", NA)][,fibro_before_treat_start := ifelse(as.Date(fibro_date) < as.Date(earliest_treat_start_date), "fibro_before_treat_start", NA)] ## rolling join, and also create variables which indicate i) recent (within 12 months prior to index date) fibroscan and ii) if fibroscan was done before treatment start
+table(test4$recent_fibro) ## 8 patients had record of fibroscan within 12 months prior to index date 
+table(test4$fibro_before_treat_start) ## 6 patients had record of fibroscan before initiation of treatment 
+hbv_fibro_during_preCOV <- hbv_fibro[,int_fibro := as.duration(lubridate::date(fibro_date) %--% lubridate::date(index.date))/ddays(1)][test3, on="study_subject_id", nomatch=NA][int_fibro<0 & int_fibro>-731 & !is.na(int_fibro),] ##rolling join, retain only patients who have had a fibroscan during the pre-COVID period 
+test4 <- test4[,-c("fibro_dat1", "int_fibro")]
+
+
+#-----------------
+# make indicators of whether patients have ever been tested for HCV (viral load or antigen) or HDV (antibody) 
+#-----------------
+
+#HCV
+length(unique(hcv_tests$study_subject_id))
+length(unique(hdv_tests$study_subject_id))
+hcv_tests <- hcv_tests[, hcv_earliest_date := min(hep_c_date_time), by="study_subject_id"]
+hcv_tests <- hcv_tests[, hcv_screen_before_base := ifelse((hep_c_test_name_id== "HCVL" | hep_c_test_name_id=="HCVR") & as.Date(hcv_earliest_date) < index.date, "screened_for_HCV", NA)][, hcv_screen_during_preCOV := ifelse((hep_c_test_name_id== "HCVL" | hep_c_test_name_id=="HCVR") & (as.Date(hcv_earliest_date) > index.date & as.Date(hcv_earliest_date) < COVstart.date), "screened_for_HCV", NA)][, hcv_screen_during_COV := ifelse((hep_c_test_name_id== "HCVL" | hep_c_test_name_id=="HCVR"| hep_c_test_name_id=="HPCG") & (as.Date(hcv_earliest_date) > COVstart.date & as.Date(hcv_earliest_date) < as.Date(end.date)), "screened_for_HCV", NA)]
+hcv_tests$hcv_screen[hcv_tests$hcv_screen_before_base=="screened_for_HCV"] <- "hcv_screen_before_base"
+hcv_tests$hcv_screen[hcv_tests$hcv_screen_during_preCOV=="screened_for_HCV"] <- "hcv_screen_during_preCOV"
+hcv_tests$hcv_screen[hcv_tests$hcv_screen_during_COV=="screened_for_HCV"] <- "hcv_screen_during_COV"
+table(hcv_tests$hcv_screen)
+
+#HDV
+hdv_tests <- hdv_tests[, hdv_earliest_date := min(hep_d_date_time), by="study_subject_id"]
+hdv_tests <- hdv_tests[, hdv_screen_before_base := ifelse((hep_d_test_name_id== "HDVG" | hep_d_test_name_id=="HDVL") & as.Date(hdv_earliest_date) < index.date, "screened_for_HDV", NA)][, hdv_screen_during_preCOV := ifelse((hep_d_test_name_id== "HDVG" | hep_d_test_name_id=="HDVL") & (as.Date(hdv_earliest_date) > index.date & as.Date(hdv_earliest_date) < COVstart.date), "screened_for_HDV", NA)][, hdv_screen_during_COV := ifelse((hep_d_test_name_id== "HDVG" | hep_d_test_name_id=="HDVL") & (as.Date(hdv_earliest_date) > COVstart.date & as.Date(hdv_earliest_date) < as.Date(end.date)), "screened_for_HDV", NA)]
+table(hdv_tests$hdv_screen_before_base)
+table(hdv_tests$hdv_screen_during_preCOV)
+table(hdv_tests$hdv_screen_during_COV)
+hdv_tests$hdv_screen[hdv_tests$hdv_screen_before_base=="screened_for_HDV"] <- "hdv_screen_before_base"
+hdv_tests$hdv_screen[hdv_tests$hdv_screen_during_preCOV=="screened_for_HDV"] <- "hdv_screen_during_preCOV"
+hdv_tests$hdv_screen[hdv_tests$hdv_screen_during_COV=="screened_for_HDV"] <- "hdv_screen_during_COV"
+table(hdv_tests$hdv_screen)
+##hdv_tests <- hdv_tests[, hdv_pos := ifelse()] ##make indicator for HDV positive 
+hdv_tests[, rowCount := .N, by = study_subject_id]
+
+##combine earliest hcv and hbv screenings with rest of data
+earliest_hcv <- hcv_tests[order(hcv_earliest_date, study_subject_id), .SD[1], by=study_subject_id] ##get earliest HCV screening for each patient
+earliest_hdv <- hdv_tests[order(hdv_earliest_date, study_subject_id), .SD[1], by=study_subject_id] ##get earliest HDV screening for each patient
+earliest_hcv <-earliest_hcv[,c(1,18)]
+earliest_hdv <-earliest_hdv[,c(1,18)]
+test6 <- earliest_hcv[test4, on="study_subject_id"]
+test7 <- earliest_hdv[test6, on="study_subject_id"]
+
+
+
+#-----------------
+#make binary indicator for abnormal ALT i) at baseline and ii) before initiation of treatment
+#-----------------
+hbv_ALT <- ALT[study_subject_id %in% hbv_ids]
+hbv_ALT <- hbv_ALT[, ALT_date := as.Date(ALT_date_time)]
+hbv_ALT <- hbv_ALT[, ti_ALT_index := as.duration(as.Date(ALT_date) %--% as.Date(index.date))/ddays(1)] ## get days between ALT measurement and index date
+hbv_ALT <- hbv_ALT[, ALT_preCOV_date := ifelse(ti_ALT_index>(-731), ALT_date, NA)][, ALT_measured_preCOV := ifelse(!is.na(ALT_preCOV_date), "yes", "no")] ## make i) new ALT date column for measurements done pre-COVID during study period and ii) indicator variable for if someone had ALT measured during preCOV period
+hbv_ALT <- hbv_ALT[, ALT_COV_date := ifelse(ti_ALT_index<(-731) & ti_ALT_index>(-1097), ALT_date, NA)][, ALT_measured_COV := ifelse(!is.na(ALT_COV_date), "yes", "no")] ## same as above for COVID period
+hbv_ALT <- earliest_reg[hbv_ALT, on="study_subject_id"]
+hbv_ALT <- setDT(hbv_ALT)
+hbv_ALT[, ti_ALT_treat := as.duration(as.Date(earliest_treat_start_date) %--% as.Date(ALT_date))/ddays(1), by=study_subject_id] ## get duration (days) between closest ALT measurement before treatment start for each patient
+hbv_ALT$ti_ALT_treat[hbv_ALT$ti_ALT_treat>=0] <- NA ## use NA for rows where ALT measured after treatment initiation 
+hbv_ALT$ti_ALT_treat[hbv_ALT$ti_ALT_treat<(-365)] <- NA ## use NA for rows where nearest ALT to treat start date is >12 months away
+closest_ALT <- hbv_ALT[order(-ti_ALT_treat), .SD[1], by="study_subject_id"] ## ALT that most closely preceeds treatment start date per patient
+closest_ALT <- closest_ALT[,c(1,12,17)] ##retain only study subject ID, ALT date and ALT result
+names(closest_ALT)[2] <- "closest_ALT_result_numerical" ## rename column
+names(closest_ALT)[3] <- "closest_ALT_date" ## rename column
+hbv_ALT <- closest_ALT[hbv_ALT, on="study_subject_id"] ## join closest ALT date to hbv_ALT
+hbv_ALT[, closest_ALT_date := as.Date(closest_ALT_date)]
+hbv_ALT[, ti_ALT_secondALT := as.duration(as.Date(closest_ALT_date) %--% as.Date(ALT_date))/ddays(1), by=study_subject_id] ##calculate number of days between closest_ALT_date and second closest date (i.e date that preceds the closest one)
+hbv_ALT$ti_ALT_secondALT[hbv_ALT$ti_ALT_secondALT>=0] <- NA ## use NA for rows where ALT measured after closest ALT 
+hbv_ALT$ti_ALT_secondALT[hbv_ALT$ti_ALT_secondALT<(-183)] <- NA
+hbv_ALT$ti_ALT_secondALT[hbv_ALT$ti_ALT_secondALT>(-91.5)] <- NA ## use NA for rows where second nearest ALT to closest ALT is >3 and <6 months away
+##View(hbv_ALT[order(-ti_ALT_secondALT, study_subject_id),c("study_subject_id", "closest_ALT_date", "ALT_date", "earliest_treat_start_date","ti_ALT_secondALT", "ALT_result_numerical")])
+second_closest_ALT <- hbv_ALT[order(-ti_ALT_secondALT), .SD[1], by="study_subject_id"] ## get ALT measurement that most closesly precedes "closest' ALT measurement for each patient
+second_closest_ALT <- second_closest_ALT[,c(1,13,19,24)] ##retain only study subject ID, ALT date and ALT result
+names(second_closest_ALT)[2] <- "second_closest_ALT_result_numerical" ## rename column
+names(second_closest_ALT)[3] <- "second_closest_ALT_date" ## rename column
+hbv_ALT <- second_closest_ALT[hbv_ALT, on="study_subject_id"] ## join second closest ALT date to hbv_ALT
+##View(hbv_ALT[,c("study_subject_id","earliest_treat_start_date", "closest_ALT_date", "closest_ALT_result_numerical", "second_closest_ALT_date","second_closest_ALT_result_numerical","ti_ALT_secondALT")])
+hbv_ALT<-hbv_ALT[YOB_sex, on='study_subject_id', nomatch=NULL] ## match ALT to sex
+hbv_ALT[,abnorm_ALT_male := ifelse((closest_ALT_result_numerical>=30 & second_closest_ALT_result_numerical>=30 & hbv_ALT$gender_id=="m") ,"abnorm_m","norm_m")] ## make abnormal ALT indicator for males
+hbv_ALT[,abnorm_ALT_female := ifelse((closest_ALT_result_numerical>=19 & second_closest_ALT_result_numerical>=19 & hbv_ALT$gender_id=="f") ,"abnorm_f","norm_f")] ## make abnormal ALT indicator for females
+hbv_ALT[,abnorm_ALT_before_treatment := ifelse((abnorm_ALT_female=="abnorm_f" | abnorm_ALT_male=="abnorm_m") ,"abnorm","norm")] ## combine into one abnorm ALT indicator 
+hbv_ALT <- hbv_ALT[,-c("abnorm_ALT_male","abnorm_ALT_female")] ## remove sex-specific dummies
+hbv_ALT[, abnorm_ALT_before_treatment_num := ifelse(abnorm_ALT_before_treatment=="abnorm", 1, 2)] ##make abnormal ALT numerical whereby 1=abnormal and 2=normal
+
+
+##View(setDT(hbv_ALT)[, .SD[which.min(ALT_date)], by = study_subject_id])
+
+## Get mean ALT at baseline for males and females
+
+##hbv_ALT[hbv_ALT$ti_ALT_index<1] <- NA ## for ALT measures taken after index date, mark time interval as NA
+##hbv_ALT[hbv_ALT$ti_ALT_index>365] <- NA ## for ALT measures taken before index date, remove those occurring more than a year before index date
+closest_ALT <- hbv_ALT[,ti_ALT_index_abs := abs(ti_ALT_index)][ti_ALT_index_abs >0 & ti_ALT_index_abs<366,][order(ti_ALT_index_abs), .SD[1], by=study_subject_id] ## get closest ALT measurement to index date for each patient, taken within 12 months of index date
+colnames(closest_ALT)
+closest_ALT <- closest_ALT[,c("study_subject_id","ALT_result_numerical","ALT_date","ti_ALT_index_abs","gender_id")] ## retain necessary columns
+names(closest_ALT)[2] <- "base_ALT_result_numerical" ##rename columns
+names(closest_ALT)[3] <- "base_ALT_date" ##rename columns
+closest_ALT[,base_ALT_result_numerical_F := ifelse(gender_id=="f", base_ALT_result_numerical, NA)] ##make continuous ALT variable for females only
+closest_ALT[,base_ALT_result_numerical_M := ifelse(gender_id=="m", base_ALT_result_numerical, NA)] ##same for males
+closest_ALT[,base_ALT_abnorm_F := ifelse(gender_id=="f" & base_ALT_result_numerical>=19, "abnormal", "normal")][,base_ALT_abnorm_F := ifelse(!is.na(base_ALT_result_numerical),base_ALT_abnorm_F,NA )] ##make continuous ALT variable for females only
+closest_ALT[,base_ALT_abnorm_M := ifelse(gender_id=="m" & base_ALT_result_numerical>=30, "abnormal", "normal")][,base_ALT_abnorm_M := ifelse(!is.na(base_ALT_result_numerical),base_ALT_abnorm_M,NA )] ## same for males
+closest_ALT[,base_ALT_abnorm := ifelse(base_ALT_abnorm_M=="abnormal"| base_ALT_abnorm_F=="abnormal","abnormal", "normal")]## combine abnormal ALT for males and females
+ ##make binary indicator for abnormal female ALT at baseline
+hbv_ALT <-closest_ALT[hbv_ALT, on="study_subject_id"]
+colnames(hbv_ALT)
+hbv_ALT_join <- hbv_ALT[,c("study_subject_id","base_ALT_abnorm","base_ALT_result_numerical_F","base_ALT_result_numerical_M","base_ALT_abnorm_F","base_ALT_abnorm_M","ALT_measured_preCOV","ALT_measured_COV","abnorm_ALT_before_treatment","abnorm_ALT_before_treatment_num")]
+hbv_ALT_join <- hbv_ALT_join[,.SD[1], by="study_subject_id"]
+test8 <- hbv_ALT_join[test7, on="study_subject_id"]
+
+
+#-----------------
+#make binary indicator for abnormal HBV DNA i) at baseline and ii) before initiation of treatment
+#-----------------
+hbvdna_study <- hbvdna[study_subject_id %in% hbv_ids]
+names(hbvdna_study)[9] <- "hbvdna_date_time"
+names(hbvdna_study)[7] <- "hbvdna_result_numerical"
+hbvdna_study[, DNA_date := as.Date(hbvdna_date_time)]
+hbvdna_study <- hbvdna_study[, ti_DNA_index := as.duration(as.Date(DNA_date) %--% as.Date(index.date))/ddays(1)] ## get days between DNA measurement and index date
+hbvdna_study <- hbvdna_study[, DNA_preCOV_date := ifelse(ti_DNA_index>(-731), DNA_date, NA)][, DNA_measured_preCOV := ifelse(!is.na(DNA_preCOV_date), "yes", "no")] ## make i) new DNA date column for measurements done pre-COVID during study period and ii) indicator variable for if someone had DNA measured during preCOV period
+hbvdna_study <- hbvdna_study[, DNA_COV_date := ifelse(ti_DNA_index<(-731) & ti_DNA_index>(-1097), DNA_date, NA)][, DNA_measured_COV := ifelse(!is.na(DNA_COV_date), "yes", "no")] ## same as above for COVID period
+hbvdna_study <- earliest_reg[hbvdna_study, on="study_subject_id"]
+hbvdna_study <- setDT(hbvdna_study)
+hbvdna_study[, ti_DNA_treat := as.duration(as.Date(earliest_treat_start_date) %--% as.Date(DNA_date))/ddays(1), by=study_subject_id] ## get duration (days) between closest DNA measurement before treatment start for each patient
+hbvdna_study$ti_DNA_treat[hbvdna_study$ti_DNA_treat>=0] <- NA ## use NA for rows where DNA measured after treatment initiation 
+hbvdna_study$ti_DNA_treat[hbvdna_study$ti_DNA_treat<(-365)] <- NA ## use NA for rows where nearest DNA to treat start date is >12 months away
+closest_DNA <- hbvdna_study[order(-ti_DNA_treat), .SD[1], by="study_subject_id"] ## DNA that most closely preceeds treatment start date per patient
+closest_DNA <- closest_DNA[,c(1,11,18)] ##retain only study subject ID, DNA date and DNA result
+names(closest_DNA)[2] <- "closest_DNA_result_numerical" ## rename column
+names(closest_DNA)[3] <- "closest_DNA_date" ## rename column
+closest_DNA[,DNA_2k_before_treat := ifelse(closest_DNA_result_numerical>2000, ">2000", "<=2000")] ##binary indicator for DNA>2k before treatment initiation
+closest_DNA[,DNA_20k_before_treat := ifelse(closest_DNA_result_numerical>20000, ">20000", "<=20000")] ##binary indicator for DNA>20k before treatment initiation
+hbvdna_study <- closest_DNA[hbvdna_study, on="study_subject_id"] ## join closest DNA date to hbvdna_study
+
+# get mean viral load at baseline
+base_DNA <- hbvdna_study[,ti_DNA_index_abs := abs(ti_DNA_index)][ti_DNA_index_abs >0 & ti_DNA_index_abs<366,][order(ti_DNA_index_abs), .SD[1], by=study_subject_id] ## get closest DNA measurement to index date for each patient, taken within 12 months of index date
+colnames(base_DNA)
+base_DNA <- base_DNA[,c("study_subject_id","hbvdna_result_numerical","DNA_date","ti_DNA_index_abs")] ## retain necessary columns
+names(base_DNA)[2] <- "base_DNA_result_numerical" ##rename columns
+names(base_DNA)[3] <- "base_DNA_date" ##rename columns
+base_DNA[,base_DNA_2k := ifelse(base_DNA_result_numerical>2000, ">2000", "<=2000")] ##binary indicator for DNA>2k at baseline
+base_DNA[,base_DNA_20k := ifelse(base_DNA_result_numerical>20000, ">20000", "<=20000")] ##binary indicator for DNA>20k at baseline
+hbvdna_study <- base_DNA[hbvdna_study, on="study_subject_id"] ## join base DNA date to hbvdna_study
+colnames(hbvdna_study)
+hbvdna_join <-hbvdna_study[,c("study_subject_id","base_DNA_result_numerical","base_DNA_2k","base_DNA_20k","DNA_2k_before_treat","DNA_20k_before_treat","DNA_measured_preCOV","DNA_measured_COV")]
+hbvdna_join <- hbvdna_join[,.SD[1], by="study_subject_id"]
+table(hbvdna_join$DNA_measured_preCOV)
+table(hbvdna_join$DNA_measured_COV)
+test9 <- hbvdna_join[test8, on="study_subject_id"]
+table(test9$DNA_measured_preCOV)
+table(test9$DNA_measured_COV)
+
+## create age groups
+test9$age_group_base[test9$age_baseline<25] <- "<=24"
+test9$age_group_base[test9$age_baseline>=25 & test9$age_baseline<35] <- "25-34"
+test9$age_group_base[test9$age_baseline>=35 & test9$age_baseline<45] <- "35-44"
+test9$age_group_base[test9$age_baseline>=45 & test9$age_baseline<55] <- "45-54"
+test9$age_group_base[test9$age_baseline>=55 & test9$age_baseline<65] <- "55-64"
+test9$age_group_base[test9$age_baseline>=65] <- ">=65"
+test9$age_group_base <- as.character(test9$age_group_base)
+test9$age_group_base <- factor(test9$age_group_base, levels=c("25-34","<=24","35-44","45-54","55-64",">=65" ))
+
+##add sites again
+sites <- chbv_ids_sites[,c("study_subject_id", "site_name")]
+test9 <- sites[test9, on="study_subject_id", nomatch=NA]
+
+```
+
+## get patient denominators
+```{r denoms, include=FALSE}
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ write function to get patient denominator by year and treatment indicator ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+hbv_treat[, latest_treat_date := max(as.Date(treat_end_date), na.rm = T), by="study_subject_id"]
+hbv_ids_sites <- hbv_treat[,.(study_subject_id,earliest_treat_start_date,latest_treat_date)][chbv_ids_sites[], on="study_subject_id", nomatch=NA][, first_hbv_positive_year := lubridate::year(first_hbv_positive_date)]
+denom_2016 <- hbv_ids_sites[(earliest_treat_start_date < lubridate::date("2016-12-31") | site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial" | is.na(earliest_treat_start_date)) & first_hbv_positive_date <= lubridate::date("2016-12-31"), ][, FU_time :=  interval(lubridate::date(first_hbv_positive_date),lubridate::ymd("2016-12-31"))/ddays(1), by=study_subject_id][, FU_time_treat := interval(lubridate::date(earliest_treat_start_date),lubridate::date("2016-12-31"))/ddays(1), by="study_subject_id"][, year := lubridate::year("2016-12-31")][, FU_time := ifelse(first_hbv_positive_year==2016, FU_time, NA)][, FU_time_treat := ifelse(first_hbv_positive_year==2016, FU_time_treat, NA)][, treat_indicator := ifelse(lubridate::year(earliest_treat_start_date)<=2016 & !is.na(earliest_treat_start_date), 1, 0)] ##create function for this at some point
+
+denom_2017 <- hbv_ids_sites[(earliest_treat_start_date < lubridate::date("2017-12-31") | site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial" | is.na(earliest_treat_start_date)) & first_hbv_positive_date <= lubridate::date("2017-12-31"), ][, FU_time :=  interval(lubridate::date(first_hbv_positive_date),lubridate::ymd("2017-12-31"))/ddays(1), by=study_subject_id][, FU_time_treat := interval(lubridate::date(earliest_treat_start_date),lubridate::date("2017-12-31"))/ddays(1), by="study_subject_id"][, year := lubridate::year("2017-12-31")][, FU_time := ifelse(first_hbv_positive_year==2017, FU_time, NA)][, FU_time_treat := ifelse(first_hbv_positive_year==2017, FU_time_treat, NA)][, treat_indicator := ifelse(lubridate::year(earliest_treat_start_date)<=2017 & !is.na(earliest_treat_start_date), 1, 0)]
+
+denom_2018 <- hbv_ids_sites[(earliest_treat_start_date < lubridate::date("2018-12-31") | site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial" | is.na(earliest_treat_start_date)) & first_hbv_positive_date <= lubridate::date("2018-12-31"), ][, FU_time :=  interval(lubridate::date(first_hbv_positive_date),lubridate::ymd("2018-12-31"))/ddays(1), by=study_subject_id][, FU_time_treat := interval(lubridate::date(earliest_treat_start_date),lubridate::date("2018-12-31"))/ddays(1), by="study_subject_id"][, year := lubridate::year("2018-12-31")][, FU_time := ifelse(first_hbv_positive_year==2018, FU_time, NA)][, FU_time_treat := ifelse(first_hbv_positive_year==2018, FU_time_treat, NA)][, treat_indicator := ifelse(lubridate::year(earliest_treat_start_date)<=2018 & !is.na(earliest_treat_start_date), 1, 0)]
+
+denom_2019 <- hbv_ids_sites[(earliest_treat_start_date < lubridate::date("2019-12-31") | site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial" | is.na(earliest_treat_start_date)) & first_hbv_positive_date <= lubridate::date("2019-12-31"), ][, FU_time :=  interval(lubridate::date(first_hbv_positive_date),lubridate::ymd("2019-12-31"))/ddays(1), by=study_subject_id][, FU_time_treat := interval(lubridate::date(earliest_treat_start_date),lubridate::date("2019-12-31"))/ddays(1), by="study_subject_id"][, year := lubridate::year("2019-12-31")][, FU_time := ifelse(first_hbv_positive_year==2019, FU_time, NA)][, FU_time_treat := ifelse(first_hbv_positive_year==2019, FU_time_treat, NA)][, treat_indicator := ifelse(lubridate::year(earliest_treat_start_date)<=2019 & !is.na(earliest_treat_start_date), 1, 0)]
+
+denom_2020 <- hbv_ids_sites[(earliest_treat_start_date < lubridate::date("2020-12-31") | site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial" | is.na(earliest_treat_start_date)) & first_hbv_positive_date <= lubridate::date("2020-12-31"), ][, FU_time :=  interval(lubridate::date(first_hbv_positive_date),lubridate::ymd("2020-12-31"))/ddays(1), by=study_subject_id][, FU_time_treat := interval(lubridate::date(earliest_treat_start_date),lubridate::date("2020-12-31"))/ddays(1), by="study_subject_id"][, year := lubridate::year("2020-12-31")][, FU_time := ifelse(first_hbv_positive_year==2020, FU_time, NA)][, FU_time_treat := ifelse(first_hbv_positive_year==2020, FU_time_treat, NA)][, treat_indicator := ifelse(lubridate::year(earliest_treat_start_date)<=2020 & !is.na(earliest_treat_start_date), 1, 0)]
+
+denom_2021 <- hbv_ids_sites[(earliest_treat_start_date < lubridate::date("2021-12-31") | site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial" | is.na(earliest_treat_start_date)) & first_hbv_positive_date <= lubridate::date("2021-12-31"), ][, FU_time :=  interval(lubridate::date(first_hbv_positive_date),lubridate::ymd("2021-12-31"))/ddays(1), by=study_subject_id][, FU_time_treat := interval(lubridate::date(earliest_treat_start_date),lubridate::date("2021-12-31"))/ddays(1), by="study_subject_id"][, year := lubridate::year("2021-12-31")][, FU_time := ifelse(first_hbv_positive_year==2021, FU_time, NA)][, FU_time_treat := ifelse(first_hbv_positive_year==2021, FU_time_treat, NA)][, treat_indicator := ifelse(lubridate::year(earliest_treat_start_date)<=2021 & !is.na(earliest_treat_start_date), 1, 0)]
+
+denom_2016 <- unique(denom_2016)
+denom_2017 <- unique(denom_2017)
+denom_2018 <- unique(denom_2018)
+denom_2019 <- unique(denom_2019)
+denom_2020 <- unique(denom_2020)
+denom_2021 <- unique(denom_2021) 
+##denom_2021 <-denom_2021[, year:= ifelse(first_hbv_positive_date <= lubridate::date("2016-12-31"), 2016, 
+##                 ifelse(first_hbv_positive_date <= lubridate::date("2017-12-31") & first_hbv_positive_date >= lubridate::date("2017-01-01"), 2017,
+##                   ifelse(first_hbv_positive_date <= lubridate::date("2018-12-31") & first_hbv_positive_date >= lubridate::date("2018-01-01"), 2018,
+##                      ifelse(first_hbv_positive_date <= lubridate::date("2019-12-31") & first_hbv_positive_date >= lubridate::date("2019-01-01"), 2019,
+##                        ifelse(first_hbv_positive_date <= lubridate::date("2020-12-31") & first_hbv_positive_date >= lubridate::date("2020-01-01"), 2020,
+##                          ifelse(ifelse(first_hbv_positive_date <= lubridate::date("2021-12-31") & first_hbv_positive_date >= lubridate::date("2021-01-01"), 2021, NA
+##                                            )))))))]
+treat_denom_2016 <- unique(denom_2016[ site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial",])
+treat_denom_2017 <- unique(denom_2017[ site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial",])
+treat_denom_2018 <- unique(denom_2018[ site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial",])
+treat_denom_2019 <- unique(denom_2019[ site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial",])
+treat_denom_2020 <- unique(denom_2020[ site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial",])
+treat_denom_2021 <- unique(denom_2021[ site_name=="Oxford" | site_name=="Southampton" | site_name=="Imperial",])  
+denom <- bind_rows(denom_2016, denom_2017, denom_2018, denom_2019, denom_2020, denom_2021)
+treat_denom <- bind_rows(treat_denom_2016, treat_denom_2017, treat_denom_2018, treat_denom_2019, treat_denom_2020, treat_denom_2021)
+treat_denom[,length(unique(study_subject_id)), by=.(year, site_name)]
+denom[,length(unique(study_subject_id)), by=.(year)]
+denom[, first_hbv_positive_month := lubridate::month(first_hbv_positive_date), by=year][, first_hbv_positive_week := lubridate::week(first_hbv_positive_date), by=year]
+denom[, diag_before_2016 := ifelse(first_hbv_positive_date < as.Date("2015-01-01"), "TRUE", "FALSE")]
+denom <- setDT(denom)
+table(denom$diag_before_2016, denom$year)
+table(denom$diag_before_2016[denom$treat_indicator==0], denom$year[denom$treat_indicator==0])
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~  write function to get patient denom by week/month and year  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+denom_by_weeks <- function(data, diag_date, week, year,treat_indicator) {
+   tab <- data %>% group_by(first_hbv_positive_week, year,treat_indicator) %>%
+  summarise(count = sum(length(lubridate::week(diag_date)) <= week))
+  
+   setDT(tab)
+   return(tab)
+
+}
+
+
+
+denom_2021[, first_hbv_positive_month := lubridate::month(first_hbv_positive_date)]
+temp_denom <- denom_2021[, length(first_hbv_positive_date), by=.(first_hbv_positive_month, first_hbv_positive_year, treat_indicator)]
+temp_denom <- temp_denom[order(treat_indicator,first_hbv_positive_year,first_hbv_positive_month), ]
+temp_denom_treat <- temp_denom[treat_indicator==1]
+temp_denom_untreat <- temp_denom[treat_indicator==0]
+temp_denom_treat <- temp_denom_treat %>% mutate(cum_pat_count = cumsum(V1))
+temp_denom_untreat <- temp_denom_untreat %>% mutate(cum_pat_count = cumsum(V1))
+temp_denom <- bind_rows(temp_denom_untreat, temp_denom_treat)
+temp_denom <- temp_denom[first_hbv_positive_year>2015,]
+temp_denom <- temp_denom[order(treat_indicator,first_hbv_positive_year,first_hbv_positive_month),]
+
+years_months <- data.table(1:12, 2016)
+years_months<- bind_rows(years_months, setDT(data.table(1:12, 2017)))
+years_months<- bind_rows(years_months, setDT(data.table(1:12, 2018)))
+years_months<- bind_rows(years_months, setDT(data.table(1:12, 2019)))
+years_months<- bind_rows(years_months, setDT(data.table(1:12, 2020)))
+years_months<- bind_rows(years_months, setDT(data.table(1:12, 2021)))
+years_months_treat <- years_months
+years_months_treat$treat_indicator <- 1
+years_months <- years_months[, treat_indicator:=0]
+years_months<- bind_rows(years_months, years_months_treat)
+names(years_months)[1] <- "first_hbv_positive_month"
+names(years_months)[2] <- "first_hbv_positive_year"
+setDT(years_months)
+
+temp_denom <- temp_denom[years_months, on=c("first_hbv_positive_month", "first_hbv_positive_year", "treat_indicator"), nomatch=NA]
+names(temp_denom)[4] <- "pat_count"
+temp_denom$cum_pat_count[temp_denom$first_hbv_positive_year==2021 & temp_denom$first_hbv_positive_month==1 & temp_denom$treat_indicator==0] <- 3875
+temp_denom$cum_pat_count[temp_denom$first_hbv_positive_year==2021 & temp_denom$first_hbv_positive_month==1 & temp_denom$treat_indicator==1] <- 499
+temp_denom <- temp_denom %>%  group_by(first_hbv_positive_year, treat_indicator)  %>% tidyr::fill(cum_pat_count)
+setDT(temp_denom)
+names(temp_denom)[1] <- "month"
+names(temp_denom)[2] <- "year"
+temp_denom_treat <- temp_denom
+temp_denom <- temp_denom %>%
+  group_by(month, year) %>%
+  summarise(cum_pat_count = sum(cum_pat_count))
+
+
+```
+
+
+
+## configure data to plot bar chart to show ALT and HBV DNA measurement year on year 
+```{r plot, include=FALSE}
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ GOVhttps://nihrhic.oxnet.nhs.uk/labkey/project/home/begin.view? UK COVID data ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+govcov <- fread("data_2021-Aug-31.csv")
+govcov <- setDT(govcov)
+govcov$date <- as.Date(govcov$date)
+govcov[, year:= lubridate::year(date)]
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ get treatment status ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+earl_reg <- hbv_treat[study_subject_id %in% chbv_ids_sites$study_subject_id]
+earl_reg[, earliest_treat_start_date := min(treat_start_date), by=study_subject_id] ##get earliest treatment date/regimen for each patient
+earl_reg[,earliest_treat_start_date := lubridate::date(earliest_treat_start_date)]
+earl_reg[,earliest_treat_start_year := lubridate::year(earliest_treat_start_date)]
+earl_reg[,earliest_treat_start_year_month := format(earliest_treat_start_date,"%m/%Y")]
+earl_reg[,earliest_treat_start_month := format(earliest_treat_start_date,"%m")]
+earl_reg[, latest_treat_date := max(as.Date(treat_end_date), na.rm = T), by="study_subject_id"]
+earl_reg$earliest_treat_start_month <- as.numeric(earl_reg$earliest_treat_start_month)
+##View(earl_reg[, if(.N > 1) .SD , .(study_subject_id)])
+earl_reg <- earl_reg[ , .SD[which.min(treat_start_date)], by = "study_subject_id"][,.(study_subject_id, earliest_treat_start_date, treat_start_date, latest_treat_date, hbv_drug_name, regimen_id)]
+
+  
+  
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ALT ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+ALT_COV <- ALT[study_subject_id %in% chbv_ids_sites$study_subject_id]
+ALT_COV <- ALT[chbv_ids_sites, on="study_subject_id", nomatch=NA]
+ALT_COV <- earl_reg[ALT_COV, on="study_subject_id", nomatch=NA]
+ALT_COV[,treat_indicator := ifelse(!is.na(earliest_treat_start_date), 1,0)]
+ALT_COV[,ALT_date := as.Date(ALT_date_time)]
+ALT_COV[,ALT_year := lubridate::year(ALT_date_time)]
+ALT_COV[,ALT_year_month := format(ALT_date_time,"%m/%Y")]
+ALT_COV[,ALT_month := format(as.Date(ALT_date_time),"%0m")]
+ALT_COV[,first_hbv_positive_date := lubridate::date(first_hbv_positive_date)]
+ALT_COV[,first_hbv_positive_year := lubridate::year(first_hbv_positive_date)]
+chbv_ids_sites[,first_hbv_positive_date := lubridate::date(first_hbv_positive_date)]
+chbv_ids_sites[,first_hbv_positive_year := lubridate::year(first_hbv_positive_date)]
+chbv_ids_sites[,first_hbv_positive_year_month := format(first_hbv_positive_date,"%m/%Y")]
+chbv_ids_sites[,first_hbv_positive_month := format(first_hbv_positive_date,"%m")]
+ALT_COV$ALT_month <- as.numeric(ALT_COV$ALT_month)
+ALT_COV$ALT_month <- sprintf("%02d", ALT_COV$ALT_month)
+ALT_COV$ALT_month <- as.numeric(ALT_COV$ALT_month)
+ALT_COV$year <- as.numeric(ALT_COV$ALT_year)
+ALT_COV[, ALT_week := lubridate::week(ALT_date), by=year]
+##ALT_COV[, n_test := length(!is.na(ALT_date)), by = c("study_subject_id","ALT_year", "ALT_month")]
+ALT_COV[, ALT_week := lubridate::week(ALT_date), by=year][, ALT_bin := ifelse(!is.na(ALT_date), 1, 0), by=.(study_subject_id, ALT_date)]
+##[, test_count_week := ifelse(!is.na(ALT_date), length(ALT_date), 0), by=.(study_subject_id, ALT_week, year)][, test_count_month := ifelse(!is.na(ALT_date), length(ALT_date), 0), by=.(study_subject_id, ALT_month, year)]
+##View(ALT_COV[, .(study_subject_id, ALT_week,  test_count_week, ALT_month, test_count_month, year,ALT_date)])
+
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ write function for earliest test date for each year ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+test_FU_time <- function(data, ALT_date, year, hbv_positive_date) {
+   data[, index_date := ifelse(year==2016, "2016-01-01", 
+                               ifelse(year==2017, "2017-01-01",
+                                      ifelse(year==2018, "2018-01-01", 
+                                             ifelse(year==2019, "2019-01-01", 
+                                                    ifelse(year==2020, "2020-01-01", 
+                                                           ifelse(year==2021, "2021-01-01", NA))))))
+][, index_date := lubridate::ymd(index_date)]
+  data[, end_date := ifelse(year==2016, "2016-12-31", 
+                               ifelse(year==2017, "2017-12-31",
+                                      ifelse(year==2018, "2018-12-31", 
+                                             ifelse(year==2019, "2019-12-31", 
+                                                    ifelse(year==2020, "2020-12-31", 
+                                                           ifelse(year==2021, "2021-12-31", NA))))))
+][, end_date := lubridate::ymd(end_date)]
+  
+data[year>=2016, FU_time_ALT := interval(lubridate::date(index_date),
+                             lubridate::date(ALT_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := ifelse(year>=2016, FU_time_ALT, NA)]
+
+if (lubridate::year(hbv_positive_date)==year) {
+data[, FU_time_ALT := interval(lubridate::date(end_date), lubridate::date(hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")]
+} else {
+data$FU_time_ALT == data$FU_time_ALT
+}
+}
+
+
+ALT_FU_time <- function(data, ALT_date, year) {
+   data[, index_date := ifelse(year==2016, "2016-01-01", 
+                               ifelse(year==2017, "2017-01-01",
+                                      ifelse(year==2018, "2018-01-01", 
+                                             ifelse(year==2019, "2019-01-01", 
+                                                    ifelse(year==2020, "2020-01-01", 
+                                                           ifelse(year==2021, "2021-01-01", NA))))))
+][, index_date := ymd(index_date)]
+data[year>=2016, FU_time_ALT := interval(lubridate::date(index_date),
+                             lubridate::date(ALT_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := ifelse(year>=2016, FU_time_ALT, NA)]
+}
+
+
+ALT_FU_time(ALT_COV, ALT_COV$ALT_date, ALT_COV$year)
+##test_FU_time(ALT_COV, ALT_COV$ALT_date, ALT_COV$year, ALT_COV$first_hbv_positive_date)
+ALT_COV[, ALT_indic := ifelse(is.na(FU_time_ALT), 0, 1)]
+
+ALT_plot_data_full <- ALT_COV[year>=2016,.(study_subject_id, site_name, treat_indicator, ALT_date, ALT_month, FU_time_ALT,year)][denom[,.(study_subject_id,site_name,first_hbv_positive_date, earliest_treat_start_date,latest_treat_date, site_name, treat_indicator, year)],on=c("study_subject_id", "year"), nomatch=NA]
+ALT_plot_data_full[,length(unique(study_subject_id)), by=.(lubridate::year(ALT_date),lubridate::month(ALT_date))]
+ALT_plot_data_full <- ALT_plot_data_full[,-c("i.site_name", "i.site_name.1")]
+ALT_plot_data_full <- unique(ALT_plot_data_full)
+##View(ALT_plot_data_full[treat_indicator!=i.treat_indicator & lubridate::year(earliest_treat_start_date)!=year, .(study_subject_id, site_name, first_hbv_positive_date, latest_treat_date, earliest_treat_start_date, lubridate::year(earliest_treat_start_date), year, treat_indicator, i.treat_indicator)])
+ALT_plot_data_full[, min(ALT_date), by=c("study_subject_id", "year")]
+ALT_plot_data_full[lubridate::year(first_hbv_positive_date)==2016 & year==2016 & is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2016-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_full[lubridate::year(first_hbv_positive_date)==2017 & year==2017 & is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2017-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_full[lubridate::year(first_hbv_positive_date)==2018 & year==2018 & is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2018-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_full[lubridate::year(first_hbv_positive_date)==2019 & year==2019 & is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2019-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_full[lubridate::year(first_hbv_positive_date)==2020 & year==2020 & is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2020-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_full[lubridate::year(first_hbv_positive_date)==2021 & year==2021 & is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2021-05-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+##ALT_plot_data_full[lubridate::year(first_hbv_positive_date)==lubridate::year(ALT_date) & !is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2016-01-01"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_full[, FU_time_ALT := ifelse(lubridate::year(first_hbv_positive_date)==2016 & lubridate::year(ALT_date)==2016 & !is.na(ALT_date),
+                   (interval(lubridate::date(ALT_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                   FU_time_ALT), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_full[, FU_time_ALT := ifelse(lubridate::year(first_hbv_positive_date)==2017 & lubridate::year(ALT_date)==2017 & !is.na(ALT_date),
+                   (interval(lubridate::date(ALT_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                   FU_time_ALT), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_full[, FU_time_ALT := ifelse(lubridate::year(first_hbv_positive_date)==2018 & lubridate::year(ALT_date)==2018 & !is.na(ALT_date),
+                   (interval(lubridate::date(ALT_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                   FU_time_ALT), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_full[, FU_time_ALT := ifelse(lubridate::year(first_hbv_positive_date)==2019 & lubridate::year(ALT_date)==2019 & !is.na(ALT_date),
+                   (interval(lubridate::date(ALT_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                   FU_time_ALT), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_full[, FU_time_ALT := ifelse(lubridate::year(first_hbv_positive_date)==2020 & lubridate::year(ALT_date)==2020 & !is.na(ALT_date),
+                   (interval(lubridate::date(ALT_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                   FU_time_ALT), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_full[, FU_time_ALT := ifelse(lubridate::year(first_hbv_positive_date)==2021 & lubridate::year(ALT_date)==2021 & !is.na(ALT_date),
+                   (interval(lubridate::date(ALT_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                   FU_time_ALT), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_full[, FU_time_ALT := min(FU_time_ALT), by = c("study_subject_id", "year")]
+ALT_plot_data_full[, ALT_indic := ifelse(!is.na(ALT_date), 1, 0)]
+
+ALT_plot_data_full[first_hbv_positive_date<=as.Date("2016-01-01") & year==2016, FU_start_date := as.Date("2016-01-01")][year==2016, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2016,
+                                                       as.Date(first_hbv_positive_date),
+                                                       FU_start_date), by="study_subject_id"]
+ALT_plot_data_full[!is.na(ALT_date) & year==2016, FU_end_date := ALT_date][is.na(ALT_date) & year==2016, FU_end_date := as.Date("2016-12-31")]
+ALT_plot_data_full[first_hbv_positive_date<=as.Date("2017-01-01") & year==2017, FU_start_date := as.Date("2017-01-01")][year==2017, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2017,
+                                                       as.Date(first_hbv_positive_date),
+                                                       FU_start_date), by="study_subject_id"]
+ALT_plot_data_full[!is.na(ALT_date) & year==2017, FU_end_date := ALT_date][is.na(ALT_date) & year==2017, FU_end_date := as.Date("2017-12-31")]
+ALT_plot_data_full[first_hbv_positive_date<=as.Date("2018-01-01") & year==2018, FU_start_date := as.Date("2018-01-01")][year==2018, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2018,
+                                                       as.Date(first_hbv_positive_date),
+                                                       FU_start_date), by="study_subject_id"]
+ALT_plot_data_full[!is.na(ALT_date) & year==2018, FU_end_date := ALT_date][is.na(ALT_date) & year==2018, FU_end_date := as.Date("2018-12-31")]
+ALT_plot_data_full[first_hbv_positive_date<=as.Date("2019-01-01") & year==2019, FU_start_date := as.Date("2019-01-01")][year==2019, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2019,
+                                                       as.Date(first_hbv_positive_date),
+                                                       FU_start_date), by="study_subject_id"]
+ALT_plot_data_full[!is.na(ALT_date) & year==2019, FU_end_date := ALT_date][is.na(ALT_date) & year==2019, FU_end_date := as.Date("2019-12-31")]
+ALT_plot_data_full[first_hbv_positive_date<=as.Date("2020-01-01") & year==2020, FU_start_date := as.Date("2020-01-01")][year==2020, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2020,
+                                                       as.Date(first_hbv_positive_date),
+                                                       FU_start_date), by="study_subject_id"]
+ALT_plot_data_full[!is.na(ALT_date) & year==2020, FU_end_date := ALT_date][is.na(ALT_date) & year==2020, FU_end_date := as.Date("2020-12-31")]
+ALT_plot_data_full[first_hbv_positive_date<=as.Date("2021-01-01") & year==2021, FU_start_date := as.Date("2021-01-01")][year==2021, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2021,
+                                                       as.Date(first_hbv_positive_date),
+                                                       FU_start_date), by="study_subject_id"]
+ALT_plot_data_full[!is.na(ALT_date) & year==2021, FU_end_date := ALT_date][is.na(ALT_date) & year==2021, FU_end_date := as.Date("2021-07-31")]
+
+ALT_plot_data_full <- ALT_plot_data_full[, head(.SD, 1), by=.(study_subject_id, year)]
+setDT(ALT_plot_data_full)[is.na(FU_time_ALT), 
+                          FU_time_ALT:= round(as.duration(FU_start_date %--% FU_end_date)/ddays(1),digits = 1)]
+
+
+ALT_plot_data_treat <- ALT_COV[year>=2016,.(study_subject_id, site_name, treat_indicator, ALT_date, ALT_month, FU_time_ALT,year)][treat_denom[,.(study_subject_id,site_name,first_hbv_positive_date, earliest_treat_start_date,latest_treat_date, site_name, treat_indicator, year)],on=c("study_subject_id", "year", "treat_indicator"), nomatch=NA]
+ALT_plot_data_treat[,site_name := i.site_name]
+ALT_plot_data_treat <- ALT_plot_data_treat[,-c("i.site_name", "i.site_name.1")]
+ALT_plot_data_treat[,length(unique(study_subject_id)), by=.(lubridate::year(ALT_date),lubridate::month(ALT_date))]
+ALT_plot_data_treat[,length(unique(study_subject_id)), by=.(year,treat_indicator)]
+ALT_plot_data_treat[, min(ALT_date), by=c("study_subject_id", "year")]
+ALT_plot_data_treat[lubridate::year(first_hbv_positive_date)==2016 & year==2016 & is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2016-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[lubridate::year(first_hbv_positive_date)==2017 & year==2017 & is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2017-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[lubridate::year(first_hbv_positive_date)==2018 & year==2018 & is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2018-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[lubridate::year(first_hbv_positive_date)==2019 & year==2019 & is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2019-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[lubridate::year(first_hbv_positive_date)==2020 & year==2020 & is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2020-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[lubridate::year(first_hbv_positive_date)==2021 & year==2021 & is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2021-05-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[lubridate::year(first_hbv_positive_date)==lubridate::year(ALT_date) & !is.na(ALT_date), FU_time_ALT := interval(lubridate::date("2016-01-01"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[, FU_time_ALT := ifelse(lubridate::year(first_hbv_positive_date)==2016 & lubridate::year(ALT_date)==2016 & !is.na(ALT_date),
+                   (interval(lubridate::date(ALT_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                   FU_time_ALT), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[, FU_time_ALT := ifelse(lubridate::year(first_hbv_positive_date)==2017 & lubridate::year(ALT_date)==2017 & !is.na(ALT_date),
+                   (interval(lubridate::date(ALT_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                   FU_time_ALT), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[, FU_time_ALT := ifelse(lubridate::year(first_hbv_positive_date)==2018 & lubridate::year(ALT_date)==2018 & !is.na(ALT_date),
+                   (interval(lubridate::date(ALT_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                   FU_time_ALT), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[, FU_time_ALT := ifelse(lubridate::year(first_hbv_positive_date)==2019 & lubridate::year(ALT_date)==2019 & !is.na(ALT_date),
+                   (interval(lubridate::date(ALT_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                   FU_time_ALT), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[, FU_time_ALT := ifelse(lubridate::year(first_hbv_positive_date)==2020 & lubridate::year(ALT_date)==2020 & !is.na(ALT_date),
+                   (interval(lubridate::date(ALT_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                   FU_time_ALT), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[, FU_time_ALT := ifelse(lubridate::year(first_hbv_positive_date)==2021 & lubridate::year(ALT_date)==2021 & !is.na(ALT_date),
+                   (interval(lubridate::date(ALT_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                   FU_time_ALT), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_ALT := abs(FU_time_ALT)]
+ALT_plot_data_treat[, FU_time_ALT := min(FU_time_ALT), by = c("study_subject_id", "year")]
+ALT_plot_data_treat[, ALT_indic := ifelse(!is.na(ALT_date), 1, 0)]
+
+
+ALT_plot_data_treat[first_hbv_positive_date<=as.Date("2016-01-01") & year==2016, FU_start_date := as.Date("2016-01-01")][year==2016, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2016,
+                                                                                                                                                            as.Date(first_hbv_positive_date),
+                                                                                                                                                            FU_start_date), by="study_subject_id"]
+ALT_plot_data_treat[!is.na(ALT_date) & year==2016, FU_end_date := ALT_date][is.na(ALT_date) & year==2016, FU_end_date := as.Date("2016-12-31")]
+ALT_plot_data_treat[first_hbv_positive_date<=as.Date("2017-01-01") & year==2017, FU_start_date := as.Date("2017-01-01")][year==2017, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2017,
+                                                                                                                                                            as.Date(first_hbv_positive_date),
+                                                                                                                                                            FU_start_date), by="study_subject_id"]
+ALT_plot_data_treat[!is.na(ALT_date) & year==2017, FU_end_date := ALT_date][is.na(ALT_date) & year==2017, FU_end_date := as.Date("2017-12-31")]
+ALT_plot_data_treat[first_hbv_positive_date<=as.Date("2018-01-01") & year==2018, FU_start_date := as.Date("2018-01-01")][year==2018, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2018,
+                                                                                                                                                            as.Date(first_hbv_positive_date),
+                                                                                                                                                            FU_start_date), by="study_subject_id"]
+ALT_plot_data_treat[!is.na(ALT_date) & year==2018, FU_end_date := ALT_date][is.na(ALT_date) & year==2018, FU_end_date := as.Date("2018-12-31")]
+ALT_plot_data_treat[first_hbv_positive_date<=as.Date("2019-01-01") & year==2019, FU_start_date := as.Date("2019-01-01")][year==2019, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2019,
+                                                                                                                                                            as.Date(first_hbv_positive_date),
+                                                                                                                                                            FU_start_date), by="study_subject_id"]
+ALT_plot_data_treat[!is.na(ALT_date) & year==2019, FU_end_date := ALT_date][is.na(ALT_date) & year==2019, FU_end_date := as.Date("2019-12-31")]
+ALT_plot_data_treat[first_hbv_positive_date<=as.Date("2020-01-01") & year==2020, FU_start_date := as.Date("2020-01-01")][year==2020, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2020,
+                                                                                                                                                            as.Date(first_hbv_positive_date),
+                                                                                                                                                            FU_start_date), by="study_subject_id"]
+ALT_plot_data_treat[!is.na(ALT_date) & year==2020, FU_end_date := ALT_date][is.na(ALT_date) & year==2020, FU_end_date := as.Date("2020-12-31")]
+ALT_plot_data_treat[first_hbv_positive_date<=as.Date("2021-01-01") & year==2021, FU_start_date := as.Date("2021-01-01")][year==2021, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2021,
+                                                                                                                                                            as.Date(first_hbv_positive_date),
+                                                                                                                                                            FU_start_date), by="study_subject_id"]
+ALT_plot_data_treat[!is.na(ALT_date) & year==2021, FU_end_date := ALT_date][is.na(ALT_date) & year==2021, FU_end_date := as.Date("2021-07-31")]
+
+ALT_plot_data_treat <- ALT_plot_data_treat[, head(.SD, 1), by=.(study_subject_id, year)]
+setDT(ALT_plot_data_treat)[is.na(FU_time_ALT), 
+                          FU_time_ALT:= round(as.duration(FU_start_date %--% FU_end_date)/ddays(1),digits = 1)]
+
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ DNA ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+DNA <- hbvdna[study_subject_id %in% hbv_ids_sites$study_subject_id]
+DNA <- hbvdna[chbv_ids_sites, on="study_subject_id", nomatch=NA]
+DNA <- earl_reg[DNA, on="study_subject_id", nomatch=NA]
+DNA[,treat_indicator := ifelse(!is.na(earliest_treat_start_date), 1,0)]
+DNA[,DNA_date := as.Date(date_time)]
+DNA[,DNA_year := lubridate::year(date_time)]
+DNA[,DNA_year_month := format(date_time,"%m/%Y")]
+DNA[,DNA_month := format(date_time,"%0m")]
+DNA[,first_hbv_positive_date := lubridate::date(first_hbv_positive_date)]
+DNA[,first_hbv_positive_year := lubridate::year(first_hbv_positive_date)]
+chbv_ids_sites[,first_hbv_positive_date := lubridate::date(first_hbv_positive_date)]
+chbv_ids_sites[,first_hbv_positive_year := lubridate::year(first_hbv_positive_date)]
+chbv_ids_sites[,first_hbv_positive_year_month := format(first_hbv_positive_date,"%m/%Y")]
+chbv_ids_sites[,first_hbv_positive_month := format(first_hbv_positive_date,"%m")]
+DNA$DNA_month <- as.numeric(DNA$DNA_month)
+DNA$DNA_month <- sprintf("%02d", DNA$DNA_month)
+DNA$DNA_month <- as.numeric(DNA$DNA_month)
+DNA$year <- as.numeric(DNA$DNA_year)
+DNA[, DNA_week := lubridate::week(DNA_date), by=year][, DNA_bin := ifelse(!is.na(DNA_date), 1, 0), by=.(study_subject_id, DNA_date)]
+##[, test_count_week := ifelse(!is.na(DNA_date), length(DNA_date), 0), by=.(study_subject_id, DNA_week, year)][, test_count_month := ifelse(!is.na(DNA_date), length(DNA_date), 0), by=.(study_subject_id, DNA_month, year)]
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ write function for earliest test date for each year ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+DNA_FU_time <- function(data, DNA_date, year) {
+   data[, index_date := ifelse(year==2016, "2016-01-01", 
+                               ifelse(year==2017, "2017-01-01",
+                                      ifelse(year==2018, "2018-01-01", 
+                                             ifelse(year==2019, "2019-01-01", 
+                                                    ifelse(year==2020, "2020-01-01", 
+                                                           ifelse(year==2021, "2021-01-01", NA))))))
+][, index_date := ymd(index_date)]
+data[year>=2016, FU_time_DNA := interval(lubridate::date(index_date),
+                             lubridate::date(DNA_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := ifelse(year>=2016, FU_time_DNA, NA)]
+}
+
+
+DNA_FU_time(DNA, DNA$DNA_date, DNA$year)
+
+DNA_plot_data_full <- DNA[year>=2016,.(study_subject_id, site_name, treat_indicator, DNA_date, DNA_month, FU_time_DNA,year)][denom[,.(study_subject_id,site_name,first_hbv_positive_date, earliest_treat_start_date,latest_treat_date, site_name, treat_indicator, year)],on=c("study_subject_id", "year"), nomatch=NA]
+DNA_plot_data_full[,length(unique(study_subject_id)), by=.(lubridate::year(DNA_date),lubridate::month(DNA_date))]
+DNA_plot_data_full <- DNA_plot_data_full[,-c("i.site_name", "i.site_name.1")]
+DNA_plot_data_full <- unique(DNA_plot_data_full)
+##View(DNA_plot_data_full[treat_indicator!=i.treat_indicator & lubridate::year(earliest_treat_start_date)!=year, .(study_subject_id, site_name, first_hbv_positive_date, latest_treat_date, earliest_treat_start_date, lubridate::year(earliest_treat_start_date), year, treat_indicator, i.treat_indicator)])
+DNA_plot_data_full[, min(DNA_date), by=c("study_subject_id", "year")]
+DNA_plot_data_full[lubridate::year(first_hbv_positive_date)==2016 & year==2016 & is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2016-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_full[lubridate::year(first_hbv_positive_date)==2017 & year==2017 & is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2017-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_full[lubridate::year(first_hbv_positive_date)==2018 & year==2018 & is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2018-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_full[lubridate::year(first_hbv_positive_date)==2019 & year==2019 & is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2019-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_full[lubridate::year(first_hbv_positive_date)==2020 & year==2020 & is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2020-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_full[lubridate::year(first_hbv_positive_date)==2021 & year==2021 & is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2021-05-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+##DNA_plot_data_full[lubridate::year(first_hbv_positive_date)==lubridate::year(DNA_date) & !is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2016-01-01"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_full[, FU_time_DNA := ifelse(lubridate::year(first_hbv_positive_date)==2016 & lubridate::year(DNA_date)==2016 & !is.na(DNA_date),
+                                           (interval(lubridate::date(DNA_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                                           FU_time_DNA), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_full[, FU_time_DNA := ifelse(lubridate::year(first_hbv_positive_date)==2017 & lubridate::year(DNA_date)==2017 & !is.na(DNA_date),
+                                           (interval(lubridate::date(DNA_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                                           FU_time_DNA), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_full[, FU_time_DNA := ifelse(lubridate::year(first_hbv_positive_date)==2018 & lubridate::year(DNA_date)==2018 & !is.na(DNA_date),
+                                           (interval(lubridate::date(DNA_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                                           FU_time_DNA), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_full[, FU_time_DNA := ifelse(lubridate::year(first_hbv_positive_date)==2019 & lubridate::year(DNA_date)==2019 & !is.na(DNA_date),
+                                           (interval(lubridate::date(DNA_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                                           FU_time_DNA), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_full[, FU_time_DNA := ifelse(lubridate::year(first_hbv_positive_date)==2020 & lubridate::year(DNA_date)==2020 & !is.na(DNA_date),
+                                           (interval(lubridate::date(DNA_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                                           FU_time_DNA), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_full[, FU_time_DNA := ifelse(lubridate::year(first_hbv_positive_date)==2021 & lubridate::year(DNA_date)==2021 & !is.na(DNA_date),
+                                           (interval(lubridate::date(DNA_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                                           FU_time_DNA), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_full[, FU_time_DNA := min(FU_time_DNA), by = c("study_subject_id", "year")]
+
+DNA_plot_data_full[first_hbv_positive_date<=as.Date("2016-01-01") & year==2016, FU_start_date := as.Date("2016-01-01")][year==2016, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2016,
+                                                                                                                                                            as.Date(first_hbv_positive_date),
+                                                                                                                                                            FU_start_date), by="study_subject_id"]
+DNA_plot_data_full[!is.na(DNA_date) & year==2016, FU_end_date := DNA_date][is.na(DNA_date) & year==2016, FU_end_date := as.Date("2016-12-31")]
+DNA_plot_data_full[first_hbv_positive_date<=as.Date("2017-01-01") & year==2017, FU_start_date := as.Date("2017-01-01")][year==2017, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2017,
+                                                                                                                                                            as.Date(first_hbv_positive_date),
+                                                                                                                                                            FU_start_date), by="study_subject_id"]
+DNA_plot_data_full[!is.na(DNA_date) & year==2017, FU_end_date := DNA_date][is.na(DNA_date) & year==2017, FU_end_date := as.Date("2017-12-31")]
+DNA_plot_data_full[first_hbv_positive_date<=as.Date("2018-01-01") & year==2018, FU_start_date := as.Date("2018-01-01")][year==2018, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2018,
+                                                                                                                                                            as.Date(first_hbv_positive_date),
+                                                                                                                                                            FU_start_date), by="study_subject_id"]
+DNA_plot_data_full[!is.na(DNA_date) & year==2018, FU_end_date := DNA_date][is.na(DNA_date) & year==2018, FU_end_date := as.Date("2018-12-31")]
+DNA_plot_data_full[first_hbv_positive_date<=as.Date("2019-01-01") & year==2019, FU_start_date := as.Date("2019-01-01")][year==2019, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2019,
+                                                                                                                                                            as.Date(first_hbv_positive_date),
+                                                                                                                                                            FU_start_date), by="study_subject_id"]
+DNA_plot_data_full[!is.na(DNA_date) & year==2019, FU_end_date := DNA_date][is.na(DNA_date) & year==2019, FU_end_date := as.Date("2019-12-31")]
+DNA_plot_data_full[first_hbv_positive_date<=as.Date("2020-01-01") & year==2020, FU_start_date := as.Date("2020-01-01")][year==2020, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2020,
+                                                                                                                                                            as.Date(first_hbv_positive_date),
+                                                                                                                                                            FU_start_date), by="study_subject_id"]
+DNA_plot_data_full[!is.na(DNA_date) & year==2020, FU_end_date := DNA_date][is.na(DNA_date) & year==2020, FU_end_date := as.Date("2020-12-31")]
+DNA_plot_data_full[first_hbv_positive_date<=as.Date("2021-01-01") & year==2021, FU_start_date := as.Date("2021-01-01")][year==2021, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2021,
+                                                                                                                                                            as.Date(first_hbv_positive_date),
+                                                                                                                                                            FU_start_date), by="study_subject_id"]
+DNA_plot_data_full[!is.na(DNA_date) & year==2021, FU_end_date := DNA_date][is.na(DNA_date) & year==2021, FU_end_date := as.Date("2021-07-31")]
+
+DNA_plot_data_full <- DNA_plot_data_full[, head(.SD, 1), by=.(study_subject_id, year)]
+setDT(DNA_plot_data_full)[is.na(FU_time_DNA), 
+                          FU_time_DNA:= round(as.duration(FU_start_date %--% FU_end_date)/ddays(1),digits = 1)]
+DNA_plot_data_full[, DNA_indic := ifelse(!is.na(DNA_date), 1, 0)]
+
+
+
+DNA_plot_data_treat <- DNA[year>=2016,.(study_subject_id, site_name, treat_indicator, DNA_date, DNA_month, FU_time_DNA,year)][treat_denom[,.(study_subject_id,site_name,first_hbv_positive_date, earliest_treat_start_date,latest_treat_date, site_name, treat_indicator, year)],on=c("study_subject_id", "year", "treat_indicator"), nomatch=NA]
+DNA_plot_data_treat[,site_name := i.site_name]
+DNA_plot_data_treat <- DNA_plot_data_treat[,-c("i.site_name", "i.site_name.1")]
+DNA_plot_data_treat[,length(unique(study_subject_id)), by=.(lubridate::year(DNA_date),lubridate::month(DNA_date))]
+DNA_plot_data_treat[,length(unique(study_subject_id)), by=.(year,treat_indicator)]
+DNA_plot_data_treat[, min(DNA_date), by=c("study_subject_id", "year")]
+DNA_plot_data_treat[lubridate::year(first_hbv_positive_date)==2016 & year==2016 & is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2016-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[lubridate::year(first_hbv_positive_date)==2017 & year==2017 & is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2017-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[lubridate::year(first_hbv_positive_date)==2018 & year==2018 & is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2018-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[lubridate::year(first_hbv_positive_date)==2019 & year==2019 & is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2019-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[lubridate::year(first_hbv_positive_date)==2020 & year==2020 & is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2020-12-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[lubridate::year(first_hbv_positive_date)==2021 & year==2021 & is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2021-05-31"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[lubridate::year(first_hbv_positive_date)==lubridate::year(DNA_date) & !is.na(DNA_date), FU_time_DNA := interval(lubridate::date("2016-01-01"), lubridate::date(first_hbv_positive_date))/ddays(1), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[, FU_time_DNA := ifelse(lubridate::year(first_hbv_positive_date)==2016 & lubridate::year(DNA_date)==2016 & !is.na(DNA_date),
+                                            (interval(lubridate::date(DNA_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                                            FU_time_DNA), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[, FU_time_DNA := ifelse(lubridate::year(first_hbv_positive_date)==2017 & lubridate::year(DNA_date)==2017 & !is.na(DNA_date),
+                                            (interval(lubridate::date(DNA_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                                            FU_time_DNA), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[, FU_time_DNA := ifelse(lubridate::year(first_hbv_positive_date)==2018 & lubridate::year(DNA_date)==2018 & !is.na(DNA_date),
+                                            (interval(lubridate::date(DNA_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                                            FU_time_DNA), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[, FU_time_DNA := ifelse(lubridate::year(first_hbv_positive_date)==2019 & lubridate::year(DNA_date)==2019 & !is.na(DNA_date),
+                                            (interval(lubridate::date(DNA_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                                            FU_time_DNA), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[, FU_time_DNA := ifelse(lubridate::year(first_hbv_positive_date)==2020 & lubridate::year(DNA_date)==2020 & !is.na(DNA_date),
+                                            (interval(lubridate::date(DNA_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                                            FU_time_DNA), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[, FU_time_DNA := ifelse(lubridate::year(first_hbv_positive_date)==2021 & lubridate::year(DNA_date)==2021 & !is.na(DNA_date),
+                                            (interval(lubridate::date(DNA_date), lubridate::date(first_hbv_positive_date))/ddays(1)), 
+                                            FU_time_DNA), by=c("study_subject_id", "year", "treat_indicator")][, FU_time_DNA := abs(FU_time_DNA)]
+DNA_plot_data_treat[, FU_time_DNA := min(FU_time_DNA), by = c("study_subject_id", "year")]
+
+DNA_plot_data_treat[first_hbv_positive_date<=as.Date("2016-01-01") & year==2016, FU_start_date := as.Date("2016-01-01")][year==2016, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2016,
+                                                                                                                                                             as.Date(first_hbv_positive_date),
+                                                                                                                                                             FU_start_date), by="study_subject_id"]
+DNA_plot_data_treat[!is.na(DNA_date) & year==2016, FU_end_date := DNA_date][is.na(DNA_date) & year==2016, FU_end_date := as.Date("2016-12-31")]
+DNA_plot_data_treat[first_hbv_positive_date<=as.Date("2017-01-01") & year==2017, FU_start_date := as.Date("2017-01-01")][year==2017, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2017,
+                                                                                                                                                             as.Date(first_hbv_positive_date),
+                                                                                                                                                             FU_start_date), by="study_subject_id"]
+DNA_plot_data_treat[!is.na(DNA_date) & year==2017, FU_end_date := DNA_date][is.na(DNA_date) & year==2017, FU_end_date := as.Date("2017-12-31")]
+DNA_plot_data_treat[first_hbv_positive_date<=as.Date("2018-01-01") & year==2018, FU_start_date := as.Date("2018-01-01")][year==2018, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2018,
+                                                                                                                                                             as.Date(first_hbv_positive_date),
+                                                                                                                                                             FU_start_date), by="study_subject_id"]
+DNA_plot_data_treat[!is.na(DNA_date) & year==2018, FU_end_date := DNA_date][is.na(DNA_date) & year==2018, FU_end_date := as.Date("2018-12-31")]
+DNA_plot_data_treat[first_hbv_positive_date<=as.Date("2019-01-01") & year==2019, FU_start_date := as.Date("2019-01-01")][year==2019, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2019,
+                                                                                                                                                             as.Date(first_hbv_positive_date),
+                                                                                                                                                             FU_start_date), by="study_subject_id"]
+DNA_plot_data_treat[!is.na(DNA_date) & year==2019, FU_end_date := DNA_date][is.na(DNA_date) & year==2019, FU_end_date := as.Date("2019-12-31")]
+DNA_plot_data_treat[first_hbv_positive_date<=as.Date("2020-01-01") & year==2020, FU_start_date := as.Date("2020-01-01")][year==2020, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2020,
+                                                                                                                                                             as.Date(first_hbv_positive_date),
+                                                                                                                                                             FU_start_date), by="study_subject_id"]
+DNA_plot_data_treat[!is.na(DNA_date) & year==2020, FU_end_date := DNA_date][is.na(DNA_date) & year==2020, FU_end_date := as.Date("2020-12-31")]
+DNA_plot_data_treat[first_hbv_positive_date<=as.Date("2021-01-01") & year==2021, FU_start_date := as.Date("2021-01-01")][year==2021, FU_start_date := ifelse(lubridate::year(first_hbv_positive_date)==2021,
+                                                                                                                                                             as.Date(first_hbv_positive_date),
+                                                                                                                                                             FU_start_date), by="study_subject_id"]
+DNA_plot_data_treat[!is.na(DNA_date) & year==2021, FU_end_date := DNA_date][is.na(DNA_date) & year==2021, FU_end_date := as.Date("2021-07-31")]
+
+DNA_plot_data_treat <- DNA_plot_data_treat[, head(.SD, 1), by=.(study_subject_id, year)]
+setDT(DNA_plot_data_treat)[is.na(FU_time_DNA), 
+                           FU_time_DNA:= round(as.duration(FU_start_date %--% FU_end_date)/ddays(1),digits = 1)]
+DNA_plot_data_treat[, DNA_indic := ifelse(!is.na(DNA_date), 1, 0)]
+
+
+```
+
+
+## ALT K-M curves
+```{r pressure, echo=FALSE}
+my_palette <- c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4")
+my_palette_treat <- c("skyblue2", "darkorange3", "black", "firebrick3", "green4")
+
+ALT_overall <- ggsurvplot(
+    fit = survfit(Surv(FU_time_ALT, event=ALT_indic==1, type = "right") ~ year,  data = ALT_plot_data_full), risk.table=T, 
+    xlab = "Month", 
+    xlim=c(0,365),
+    ylim=c(0,1),
+    font.x=20,
+    font.y=20,
+    font.title=20,
+    font.tickslab=20,
+    font.legend=20,
+    fontsize=7,
+    risk.table.fontsize=7,
+    break.time.by=30.41667,
+    xscale=30.41667,
+    surv.median.line="h",
+    conf.int = T, palette = my_palette,
+    legend = c(0.1, 0.8),
+    pval=T,
+    pval.method = T,
+    pval.size=7,
+    pval.coord = c(0.1, 0.6),
+    pval.method.coord = c(0.1, 0.55),
+    risk.table.title="Number to be tested",
+    legend.title="",
+    risk.table.col = "black",
+    legend.labs=c("2016", "2017", "2018", "2019", "2020", "2021"),
+    fun=c('event'),
+    surv.scale="percent",
+    ylab = "Percentage of patients with >=1 ALT measurement")
+pdf("ALT_KM.pdf", height = 12, width = 15)
+print(ALT_overall, newpage = FALSE)
+dev.off()
+
+ALT_plot_data_treat_treated <- ALT_plot_data_treat[treat_indicator==1,]
+ALT_plot_data_treat_untreat <- ALT_plot_data_treat[treat_indicator==0,]
+ALT_treat_plots <- list()
+ALT_treat <-  ggsurvplot(
+    fit = survfit(Surv(FU_time_ALT, event=ALT_indic==1, type = "right") ~ year,  data = ALT_plot_data_treat_treated), risk.table=T, 
+    xlab = "Month", 
+    xlim=c(0,365),
+    ylim=c(0,1),
+    font.x=20,
+    font.y=20,
+    font.title=20,
+    font.tickslab=20,
+    font.legend=20,
+    fontsize=7,
+    risk.table.fontsize=7,
+    break.time.by=30.41667,
+    xscale=30.41667,
+    surv.median.line="h",
+    conf.int = T, palette = my_palette,
+    legend = c(0.1, 0.8),
+    pval=T,
+    pval.method = T,
+    pval.size=7,
+    pval.coord = c(0.1, 0.6),
+    pval.method.coord = c(0.1, 0.55),
+    risk.table.title="Number to be tested",
+    legend.title="",
+    risk.table.col = "black",
+    legend.labs=c("2016", "2017", "2018", "2019", "2020", "2021"),
+    fun=c('event'),
+    surv.scale="percent",
+    ylab = "Percentage of treated patients with >=1 ALT measurement")
+pdf("ALT_KM_treat.pdf", height = 12, width = 15)
+print(ALT_treat, newpage = FALSE)
+dev.off()
+
+
+ALT_treat_plots[[1]] <-  ggsurvplot(
+    fit = survfit(Surv(FU_time_ALT, event=ALT_indic==1, type = "right") ~ year,  data = ALT_plot_data_treat_treated), risk.table=T, 
+    xlab = "Month", 
+    xlim=c(0,365),
+    ylim=c(0,1),
+    font.x=20,
+    font.y=20,
+    font.title=20,
+    font.tickslab=20,
+    font.legend=20,
+    fontsize=7,
+    risk.table.fontsize=7,
+    break.time.by=30.41667,
+    xscale=30.41667,
+    surv.median.line="h",
+    conf.int = T, palette = my_palette,
+    legend = c(0.1, 0.8),
+    pval=T,
+    pval.method = T,
+    pval.size=7,
+    pval.coord = c(0.1, 0.6),
+    pval.method.coord = c(0.1, 0.55),
+    risk.table.title="Number to be tested",
+    legend.title="",
+    risk.table.col = "black",
+    legend.labs=c("2016", "2017", "2018", "2019", "2020", "2021"),
+    fun=c('event'),
+    surv.scale="percent",
+    ylab = "Percentage of treated patients with >=1 ALT measurement")
+ 
+ALT_untreat <- ggsurvplot(
+    fit = survfit(Surv(FU_time_ALT, event=ALT_indic==1, type = "right") ~ year,  data = ALT_plot_data_treat_untreat), risk.table=T, 
+     xlab = "Month", 
+    xlim=c(0,365),
+    ylim=c(0,1),
+    font.x=20,
+    font.y=20,
+    font.title=20,
+    font.tickslab=20,
+    font.legend=20,
+    fontsize=7,
+    risk.table.fontsize=7,
+    break.time.by=30.41667,
+    xscale=30.41667,
+    surv.median.line="h",
+    conf.int = T, palette = my_palette,
+    legend = c(0.1, 0.8),
+    pval=T,
+    pval.method = T,
+    pval.size=7,
+    pval.coord = c(0.1, 0.6),
+    pval.method.coord = c(0.1, 0.55),
+    risk.table.title="Number to be tested",
+    legend.title="",
+    risk.table.col = "black",
+    legend.labs=c("2016", "2017", "2018", "2019", "2020", "2021"),
+    fun=c('event'),
+    surv.scale="percent",
+    ylab = "Percentage of untreated patients with >=1 ALT measurement")
+pdf("ALT_KM_untreat.pdf", height = 12, width = 15)
+print(ALT_untreat, newpage = FALSE)
+dev.off()
+
+ALT_treat_plots[[2]]  <- ggsurvplot(
+    fit = survfit(Surv(FU_time_ALT, event=ALT_indic==1, type = "right") ~ year,  data = ALT_plot_data_treat_untreat), risk.table=T, 
+    xlab = "Month", 
+    xlim=c(0,365),
+    ylim=c(0,1),
+    font.x=20,
+    font.y=20,
+    font.title=20,
+    font.tickslab=20,
+    font.legend=20,
+    fontsize=7,
+    risk.table.fontsize=7,
+    break.time.by=30.41667,
+    xscale=30.41667,
+    surv.median.line="h",
+    conf.int = T, palette = my_palette,
+    legend = c(0.1, 0.8),
+    pval=T,
+    pval.method = T,
+    pval.size=7,
+    pval.coord = c(0.1, 0.6),
+    pval.method.coord = c(0.1, 0.55),
+    risk.table.title="Number to be tested",
+    legend.title="",
+    risk.table.col = "black",
+    legend.labs=c("2016", "2017", "2018", "2019", "2020", "2021"),
+    fun=c('event'),
+    surv.scale="percent",
+    ylab = "Percentage of untreated patients with >=1 ALT measurement")
+
+ALT_treat_strat <- arrange_ggsurvplots(ALT_treat_plots, ncol=2, nrow=1)
+##pdf("ALT_treat_strat.pdf", height = 35, width = 70)
+##print(ALT_overall)
+##dev.off()
+
+                                    
+
+```
+
+
+## DNA K-M curves
+```{r pressure, echo=FALSE}
+my_palette <- c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4")
+my_palette_treat <- c("skyblue2", "darkorange3", "black", "firebrick3", "green4")
+
+DNA_overall <- ggsurvplot(
+  fit = survfit(Surv(FU_time_DNA, event=DNA_indic==1, type = "right") ~ year,  data = DNA_plot_data_full), risk.table=T, 
+  xlab = "Month", 
+    xlim=c(0,365),
+    ylim=c(0,1),
+    font.x=20,
+    font.y=20,
+    font.title=20,
+    font.tickslab=20,
+    font.legend=20,
+    fontsize=7,
+    risk.table.fontsize=7,
+    break.time.by=30.41667,
+    xscale=30.41667,
+    surv.median.line="h",
+    conf.int = T, palette = my_palette,
+    legend = c(0.1, 0.8),
+    pval=T,
+    pval.method = T,
+    pval.size=7,
+    pval.coord = c(0.1, 0.6),
+    pval.method.coord = c(0.1, 0.55),
+    risk.table.title="Number to be tested",
+    legend.title="",
+    risk.table.col = "black",
+  legend.labs=c("2016", "2017", "2018", "2019", "2020", "2021"),
+  fun=c('event'),
+  surv.scale="percent",
+  ylab = "Percentage of patients with >=1 DNA measurement")
+pdf("DNA_KM.pdf", height = 12, width = 15)
+print(DNA_overall, newpage = FALSE)
+dev.off()
+
+DNA_plot_data_treat_treated <- DNA_plot_data_treat[treat_indicator==1,]
+DNA_plot_data_treat_untreat <- DNA_plot_data_treat[treat_indicator==0,]
+DNA_treat_plots <- list()
+DNA_treat <-  ggsurvplot(
+  fit = survfit(Surv(FU_time_DNA, event=DNA_indic==1, type = "right") ~ year,  data = DNA_plot_data_treat_treated), risk.table=T, 
+  xlab = "Month", 
+    xlim=c(0,365),
+    ylim=c(0,1),
+    font.x=20,
+    font.y=20,
+    font.title=20,
+    font.tickslab=20,
+    font.legend=20,
+    fontsize=7,
+    risk.table.fontsize=7,
+    break.time.by=30.41667,
+    xscale=30.41667,
+    surv.median.line="h",
+    conf.int = T, palette = my_palette,
+    legend = c(0.1, 0.8),
+    pval=T,
+    pval.method = T,
+    pval.size=7,
+    pval.coord = c(0.1, 0.6),
+    pval.method.coord = c(0.1, 0.55),
+    risk.table.title="Number to be tested",
+    legend.title="",
+    risk.table.col = "black",
+  legend.labs=c("2016", "2017", "2018", "2019", "2020", "2021"),
+  fun=c('event'),
+  surv.scale="percent",
+  ylab = "Percentage of treated patients with >=1 DNA measurement")
+pdf("DNA_KM_treat.pdf", height = 12, width = 15)
+print(DNA_treat, newpage = FALSE)
+dev.off()
+
+
+DNA_treat_plots[[1]] <-  ggsurvplot(
+  fit = survfit(Surv(FU_time_DNA, event=DNA_indic==1, type = "right") ~ year,  data = DNA_plot_data_treat_treated), risk.table=T, 
+   xlab = "Month", 
+    xlim=c(0,365),
+    ylim=c(0,1),
+    font.x=20,
+    font.y=20,
+    font.title=20,
+    font.tickslab=20,
+    font.legend=20,
+    fontsize=7,
+    risk.table.fontsize=7,
+    break.time.by=30.41667,
+    xscale=30.41667,
+    surv.median.line="h",
+    conf.int = T, palette = my_palette,
+    legend = c(0.1, 0.8),
+    pval=T,
+    pval.method = T,
+    pval.size=7,
+    pval.coord = c(0.1, 0.6),
+    pval.method.coord = c(0.1, 0.55),
+    risk.table.title="Number to be tested",
+    legend.title="",
+    risk.table.col = "black",
+  legend.labs=c("2016", "2017", "2018", "2019", "2020", "2021"),
+  fun=c('event'),
+  surv.scale="percent",
+  ylab = "Percentage of treated patients with >=1 DNA measurement")
+
+DNA_untreat <- ggsurvplot(
+  fit = survfit(Surv(FU_time_DNA, event=DNA_indic==1, type = "right") ~ year,  data = DNA_plot_data_treat_untreat), risk.table=T, 
+  xlab = "Month", 
+    xlim=c(0,365),
+    ylim=c(0,1),
+    font.x=20,
+    font.y=20,
+    font.title=20,
+    font.tickslab=20,
+    font.legend=20,
+    fontsize=7,
+    risk.table.fontsize=7,
+    break.time.by=30.41667,
+    xscale=30.41667,
+    surv.median.line="h",
+    conf.int = T, palette = my_palette,
+    legend = c(0.1, 0.8),
+    pval=T,
+    pval.method = T,
+    pval.size=7,
+    pval.coord = c(0.1, 0.6),
+    pval.method.coord = c(0.1, 0.55),
+    risk.table.title="Number to be tested",
+    legend.title="",
+    risk.table.col = "black",
+  legend.labs=c("2016", "2017", "2018", "2019", "2020", "2021"),
+  fun=c('event'),
+  surv.scale="percent",
+  ylab = "Percentage of untreated patients with >=1 DNA measurement")
+pdf("DNA_KM_untreat.pdf", height = 12, width = 15)
+print(DNA_untreat, newpage = FALSE)
+dev.off()
+
+DNA_treat_plots[[2]]  <- ggsurvplot(
+  fit = survfit(Surv(FU_time_DNA, event=DNA_indic==1, type = "right") ~ year,  data = DNA_plot_data_treat_untreat), risk.table=T, 
+  xlab = "Month", 
+    xlim=c(0,365),
+    ylim=c(0,1),
+    font.x=20,
+    font.y=20,
+    font.title=20,
+    font.tickslab=20,
+    font.legend=20,
+    fontsize=7,
+    risk.table.fontsize=7,
+    break.time.by=30.41667,
+    xscale=30.41667,
+    surv.median.line="h",
+    conf.int = T, palette = my_palette,
+    legend = c(0.1, 0.8),
+    pval=T,
+    pval.method = T,
+    pval.size=7,
+    pval.coord = c(0.1, 0.6),
+    pval.method.coord = c(0.1, 0.55),
+    risk.table.title="Number to be tested",
+    legend.title="",
+    risk.table.col = "black",
+  legend.labs=c("2016", "2017", "2018", "2019", "2020", "2021"),
+  fun=c('event'),
+  surv.scale="percent",
+  ylab = "Percentage of untreated patients with >=1 DNA measurement")
+
+DNA_treat_strat <- arrange_ggsurvplots(DNA_treat_plots, ncol=2, nrow=1)
+##pdf("DNA_treat_strat.pdf", height = 35, width = 70)
+##print(DNA_overall)
+##dev.off()
+
+
+```
+## KM summaries
+```{r KM_DNA, echo=FALSE}
+# ALT
+View(surv_summary(survfit(Surv(FU_time_ALT, event=ALT_indic==1, type = "right") ~ year,  data = ALT_plot_data_full)))
+surv_median(survfit(Surv(FU_time_ALT, event=ALT_indic==1, type = "right") ~ year,  data = ALT_plot_data_full))
+
+
+View(surv_summary(survfit(Surv(FU_time_ALT, event=ALT_indic==1, type = "right") ~ year,  data = ALT_plot_data_treat_untreat)))
+View(surv_summary(survfit(Surv(FU_time_ALT, event=ALT_indic==1, type = "right") ~ year,  data = ALT_plot_data_treat_treated)))
+
+
+
+# DNA
+View(surv_summary(survfit(Surv(FU_time_DNA, event=DNA_indic==1, type = "right") ~ year,  data = DNA_plot_data_full)))
+surv_median(survfit(Surv(FU_time_DNA, event=DNA_indic==1, type = "right") ~ year,  data = DNA_plot_data_full))
+
+
+View(surv_summary(survfit(Surv(FU_time_DNA, event=DNA_indic==1, type = "right") ~ year,  data = DNA_plot_data_treat_untreat)))
+View(surv_summary(survfit(Surv(FU_time_DNA, event=DNA_indic==1, type = "right") ~ year,  data = DNA_plot_data_treat_treated)))
+
+
+```
+
+
+## mean plotting data
+```{r plotting_mean_date, echo=FALSE, results="hide"}
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~  tabulate mean number of ALT and DNA tests by week/year  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+# ALT
+temp_ALT <- ALT_COV[, .SD[1L], by=.(study_subject_id, ALT_date)]
+temp_ALT <- temp_ALT[year>2015, sum(ALT_bin), by=.(ALT_month, year)]
+names(temp_ALT)[1] <- "month"
+names(temp_ALT)[3] <- "ALT_count"
+names(temp_denom)[1] <- "month"
+names(temp_denom)[2] <- "year"
+setDT(temp_ALT)
+setDT(temp_denom)
+ALT_mean <- temp_ALT[temp_denom, on=c("month", "year")]
+ALT_mean[, mean := ALT_count/cum_pat_count][, mean_100 := mean*100]
+ALT_mean[, SD := sd(mean, na.rm=T)][, SE_mean := SD/sqrt(cum_pat_count)] ## calculate SE of mean
+ALT_mean[, SE_mean := SD/sqrt(cum_pat_count)][,LCI_mean := 100*(mean - 1.96*SE_mean)][,UCI_mean := 100*(mean + 1.96*SE_mean)]
+
+## ALT - stratified by treatment
+temp_denom_treat <- temp_denom_treat[year>2015]
+temp_ALT_treat <- ALT_COV[, .SD[1L], by=.(study_subject_id, ALT_date)]
+temp_ALT_treat <- temp_ALT_treat[year>2015, sum(ALT_bin), by=.(ALT_month, year, treat_indicator)]
+names(temp_ALT_treat)[1] <- "month"
+names(temp_ALT_treat)[4] <- "ALT_count"
+setDT(temp_ALT_treat)
+setDT(temp_denom_treat)
+ALT_mean_treat <- temp_ALT_treat[temp_denom_treat, on=c("month", "year", "treat_indicator")]
+ALT_mean_treat[, mean := ALT_count/cum_pat_count][, mean_100 := mean*100]
+ALT_mean_treat[, SD := sd(mean, na.rm=T)][, SE_mean := SD/sqrt(cum_pat_count)] ## calculate SE of mean
+ALT_mean_treat[, SE_mean := SD/sqrt(cum_pat_count)][,LCI_mean := 100*(mean - 1.96*SE_mean)][,UCI_mean := 100*(mean + 1.96*SE_mean)]
+ALT_mean_treat <- ALT_mean_treat[year>2015,]
+
+ALT_mean_untreat <- ALT_mean_treat[treat_indicator==0,]
+ALT_mean_treat <-ALT_mean_treat[treat_indicator==1,]
+
+
+
+# DNA
+temp_DNA <- DNA[, .SD[1L], by=.(study_subject_id, DNA_date)]
+temp_DNA <- temp_DNA[year>2015, sum(DNA_bin), by=.(DNA_month, year)]
+names(temp_DNA)[1] <- "month"
+names(temp_DNA)[3] <- "DNA_count"
+names(temp_denom)[1] <- "month"
+names(temp_denom)[2] <- "year"
+setDT(temp_DNA)
+setDT(temp_denom)
+DNA_mean <- temp_DNA[temp_denom, on=c("month", "year")]
+DNA_mean[, mean := DNA_count/cum_pat_count][, mean_100 := mean*100]
+DNA_mean[, SD := sd(mean, na.rm=T)][, SE_mean := SD/sqrt(cum_pat_count)] ## calculate SE of mean
+DNA_mean[, SE_mean := SD/sqrt(cum_pat_count)][,LCI_mean := 100*(mean - 1.96*SE_mean)][,UCI_mean := 100*(mean + 1.96*SE_mean)]
+
+## DNA - stratified by treatment
+temp_DNA_treat <- DNA[, .SD[1L], by=.(study_subject_id, DNA_date)]
+temp_DNA_treat <- temp_DNA_treat[year>2015, sum(DNA_bin), by=.(DNA_month, year, treat_indicator)]
+names(temp_DNA_treat)[1] <- "month"
+names(temp_DNA_treat)[4] <- "DNA_count"
+setDT(temp_DNA_treat)
+setDT(temp_denom_treat)
+DNA_mean_treat <- temp_DNA_treat[temp_denom_treat, on=c("month", "year", "treat_indicator")]
+DNA_mean_treat[, mean := DNA_count/cum_pat_count][, mean_100 := mean*100]
+DNA_mean_treat[, SD := sd(mean, na.rm=T)][, SE_mean := SD/sqrt(cum_pat_count)] ## calculate SE of mean
+DNA_mean_treat[, SE_mean := SD/sqrt(cum_pat_count)][,LCI_mean := 100*(mean - 1.96*SE_mean)][,UCI_mean := 100*(mean + 1.96*SE_mean)]
+
+DNA_mean_untreat <- DNA_mean_treat[treat_indicator==0,]
+DNA_mean_treat <- DNA_mean_treat[treat_indicator==1,]
+
+
+```
+
+
+## DNA mean plots
+```{r individual plots, echo=FALSE}
+DNA_mean_overall <- ggplot(DNA_mean, aes(month)) 
+DNA_mean_overall <- DNA_mean_overall + geom_segment(aes(x=2.958904, y=0, yend=20, xend=2.958904))
+DNA_mean_overall <- DNA_mean_overall + annotate(geom="text", x=2.958904, y=23, size=5, label="First\nlockdown\nbegins\n26-Mar-2020",color="black")
+DNA_mean_overall <- DNA_mean_overall + geom_segment(aes(x=4.964383, y=0, yend=20, xend=4.964383)) 
+DNA_mean_overall <- DNA_mean_overall + annotate(geom="text", x=4.964383, y=23, size=5, label="First\nlockdown\neases\n01-Jun-2020",color="black")
+DNA_mean_overall <- DNA_mean_overall + geom_segment(aes(x=10.1589, y=0, yend=20, xend=10.1589), linetype="dashed")
+DNA_mean_overall <- DNA_mean_overall + annotate(geom="text", x=10.1589, y=23, size=5, label="Second\nlockdown\nbegins\n01-Nov-2020",color="black")
+
+DNA_mean_overall <- DNA_mean_overall + 
+   geom_line(
+  data=DNA_mean, 
+  aes(x=month, y=mean_100,
+      colour=as.factor(year), 
+  ))  + 
+  scale_color_manual(values=c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4"), name="Year")
+DNA_mean_overall <- DNA_mean_overall +
+  geom_ribbon(data=DNA_mean, aes(month,ymin=LCI_mean,ymax=UCI_mean, fill=as.factor(year)), alpha=0.2) + 
+  scale_fill_manual(values=c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4"), name="fill", guide="none") 
+
+DNA_mean_overall <- DNA_mean_overall +  theme(axis.text.y=element_text(colour="black", size = 18), axis.text.x=element_text(colour="black", size = 18), text = element_text(size = 18), panel.grid.major = element_blank(), legend.key=element_blank(), legend.text=element_text(size=18), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+
+
+DNA_mean_overall <- DNA_mean_overall + scale_x_continuous(breaks=c(1:12),labels=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))  + coord_cartesian(ylim = c(0,25)) + labs(title="", x ="\nMonth\n", y = "\nMean HBV DNA VL measurements per 100 patients\n")
+
+DNA_mean_overall <- DNA_mean_overall + scale_y_continuous(breaks=c(0,5,10,15,20,25,30))
+
+
+DNA_mean_overall
+ggsave("DNA_mean_overall.pdf", width = 12, height = 10)
+
+```
+
+## ALT mean plots
+```{r pressure, echo=FALSE}
+ALT_mean_overall <- ggplot(ALT_mean, aes(month)) 
+ALT_mean_overall <- ALT_mean_overall + geom_segment(aes(x=2.958904, y=0, yend=43, xend=2.958904))
+ALT_mean_overall <- ALT_mean_overall + annotate(geom="text", x=2.958904, y=48, size=5, label="First\nlockdown\nbegins\n26-Mar-2020",color="black")
+ALT_mean_overall <- ALT_mean_overall + geom_segment(aes(x=4.964383, y=0, yend=43, xend=4.964383)) 
+ALT_mean_overall <- ALT_mean_overall + annotate(geom="text", x=4.964383, y=48, size=5, label="First\nlockdown\neases\n01-Jun-2020",color="black")
+ALT_mean_overall <- ALT_mean_overall + geom_segment(aes(x=10.1589, y=0, yend=43, xend=10.1589), linetype="dashed")
+ALT_mean_overall <- ALT_mean_overall + annotate(geom="text", x=10.1589, y=48, size=5, label="Second\nlockdown\nbegins\n01-Nov-2020",color="black")
+
+ALT_mean_overall <- ALT_mean_overall + 
+  geom_line(
+    data=ALT_mean, 
+    aes(x=month, y=mean_100,
+        colour=as.factor(year), 
+    ))  + 
+  scale_color_manual(values=c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4"), name="Year")
+ALT_mean_overall <- ALT_mean_overall +
+  geom_ribbon(data=ALT_mean, aes(month,ymin=LCI_mean,ymax=UCI_mean, fill=as.factor(year)), alpha=0.2) + 
+  scale_fill_manual(values=c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4"), name="fill", guide="none") 
+
+ALT_mean_overall <- ALT_mean_overall +  theme(axis.text.y=element_text(colour="black",, size = 18), axis.text.x=element_text(colour="black", size = 18), text = element_text(size = 18), panel.grid.major = element_blank(), legend.key=element_blank(), legend.text=element_text(size=18),panel.grid.minor = element_blank(),
+                                              panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+
+
+ALT_mean_overall <- ALT_mean_overall + scale_x_continuous(breaks=c(1:12),labels=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))  + coord_cartesian(ylim = c(0,55)) + labs(title="", x ="\nMonth\n", y = "\nMean ALT measurements per 100 patients\n")
+ALT_mean_overall <- ALT_mean_overall + scale_y_continuous(breaks=c(0,10,20,30,40,50))
+
+ALT_mean_overall
+ggsave("ALT_mean_overall.pdf", width = 12, height = 10)
+
+```
+
+## DNA mean plots, stratified by treatment
+```{r individual plots, echo=FALSE}
+## treated 
+DNA_mean_treat_plot <- ggplot(DNA_mean_treat, aes(month)) + 
+   geom_line(
+  data=DNA_mean_treat, 
+  aes(x=month, y=mean_100,
+      colour=as.factor(year) 
+  ))  +  scale_color_manual(values=c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4"), name="Year")
+
+DNA_mean_treat_plot <- DNA_mean_treat_plot +
+  geom_ribbon(data=DNA_mean_treat, aes(month,ymin=LCI_mean,ymax=UCI_mean, fill=as.factor(year)), alpha=0.2) + 
+  scale_fill_manual(values=c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4"), name="fill", guide="none") 
+
+DNA_mean_treat_plot <- DNA_mean_treat_plot +  theme(axis.text.y=element_text(colour="black", size = 18), axis.text.x=element_text(colour="black", size = 18), text = element_text(size = 18), panel.grid.major = element_blank(), legend.key=element_blank(), legend.text=element_text(size=18),panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+
+
+DNA_mean_treat_plot <- DNA_mean_treat_plot + scale_x_continuous(breaks=c(1:12),labels=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))  + coord_cartesian(ylim = c(0,25)) + labs(title="", x ="\nMonth\n", y = "\nMean HBV DNA VL measurements per 100 treated patients\n")
+
+DNA_mean_treat_plot <- DNA_mean_treat_plot + scale_y_continuous(breaks=c(0,5,10,15,20,25,30))
+
+DNA_mean_treat_plot
+ggsave("DNA_mean_treat.pdf", width = 12, height = 10)
+
+## untreated
+DNA_mean_untreat_plot <- ggplot(DNA_mean_untreat, aes(month)) + 
+   geom_line(
+  data=DNA_mean_untreat, 
+  aes(x=month, y=mean_100,
+      colour=as.factor(year) 
+  ))  +  scale_color_manual(values=c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4"), name="Year")
+
+DNA_mean_untreat_plot <- DNA_mean_untreat_plot +
+  geom_ribbon(data=DNA_mean_untreat, aes(month,ymin=LCI_mean,ymax=UCI_mean, fill=as.factor(year)), alpha=0.2) + 
+  scale_fill_manual(values=c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4"), name="fill", guide="none") 
+
+DNA_mean_untreat_plot <- DNA_mean_untreat_plot +  theme(axis.text.y=element_text(colour="black", size = 18), axis.text.x=element_text(colour="black", size = 18), text = element_text(size = 18), panel.grid.major = element_blank(), legend.key=element_blank(), legend.text=element_text(size=18),panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+
+
+DNA_mean_untreat_plot <- DNA_mean_untreat_plot + scale_x_continuous(breaks=c(1:12),labels=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))  + coord_cartesian(ylim = c(0,25)) + labs(title="", x ="\nMonth\n", y = "\nMean HBV DNA VL measurements per 100 untreated patients\n")
+
+DNA_mean_untreat_plot <- DNA_mean_untreat_plot + scale_y_continuous(breaks=c(0,5,10,15,20,25,30))
+
+DNA_mean_untreat_plot
+ggsave("DNA_mean_untreat.pdf", width = 12, height = 10)
+
+
+```
+
+## ALT mean plots, stratified by treatment
+```{r individual plots, echo=FALSE}
+## treated 
+ALT_mean_treat_plot <- ggplot(ALT_mean_treat, aes(month)) + 
+  geom_line(
+    data=ALT_mean_treat, 
+    aes(x=month, y=mean_100,
+        colour=as.factor(year) 
+    ))  +  scale_color_manual(values=c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4"), name="Year")
+
+ALT_mean_treat_plot <- ALT_mean_treat_plot +
+  geom_ribbon(data=ALT_mean_treat, aes(month,ymin=LCI_mean,ymax=UCI_mean, fill=as.factor(year)), alpha=0.2) + 
+  scale_fill_manual(values=c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4"), name="fill", guide="none") 
+
+ALT_mean_treat_plot <- ALT_mean_treat_plot +  theme(axis.text.y=element_text(colour="black", size = 18), axis.text.x=element_text(colour="black", size = 18), text = element_text(size = 18), panel.grid.major = element_blank(), legend.key=element_blank(), legend.text=element_text(size=18),panel.grid.minor = element_blank(),
+                                                    panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+
+
+ALT_mean_treat_plot <- ALT_mean_treat_plot + scale_x_continuous(breaks=c(1:12),labels=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))  + coord_cartesian(ylim = c(0,55)) + labs(title="", x ="\nMonth\n", y = "\nMean ALT measurements per 100 treated patients\n")
+
+ALT_mean_treat_plot <- ALT_mean_treat_plot + scale_y_continuous(breaks=c(0,10,20,30,40,50))
+
+
+ALT_mean_treat_plot
+ggsave("ALT_mean_treat.pdf", width = 12, height = 10)
+
+## untreated
+ALT_mean_untreat_plot <- ggplot(ALT_mean_untreat, aes(month)) + 
+  geom_line(
+    data=ALT_mean_untreat, 
+    aes(x=month, y=mean_100,
+        colour=as.factor(year) 
+    ))  +  scale_color_manual(values=c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4"), name="Year")
+
+ALT_mean_untreat_plot <- ALT_mean_untreat_plot +
+  geom_ribbon(data=ALT_mean_untreat, aes(month,ymin=LCI_mean,ymax=UCI_mean, fill=as.factor(year)), alpha=0.2) + 
+  scale_fill_manual(values=c("skyblue2", "darkorange3", "black", "firebrick3", "green4", "mediumorchid4"), name="fill", guide="none") 
+
+ALT_mean_untreat_plot <- ALT_mean_untreat_plot +  theme(axis.text.y=element_text(colour="black", size = 18), axis.text.x=element_text(colour="black", size = 18), text = element_text(size = 18), panel.grid.major = element_blank(), legend.key=element_blank(), legend.text=element_text(size=18),panel.grid.minor = element_blank(),
+                                                        panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+
+
+ALT_mean_untreat_plot <- ALT_mean_untreat_plot + scale_x_continuous(breaks=c(1:12),labels=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))  + coord_cartesian(ylim = c(0,55)) + labs(title="", x ="\nMonth\n", y = "\nMean ALT measurements per 100 untreated patients\n")
+
+ALT_mean_untreat_plot <- ALT_mean_untreat_plot + scale_y_continuous(breaks=c(0,10,20,30,40,50))
+
+
+ALT_mean_untreat_plot
+ggsave("ALT_mean_untreat.pdf", width = 12, height = 10)
+
+```
+# combine KM plots
+```{r combine_plots, echo=FALSE}
+KM_ALT_treat_combined <- arrange_ggsurvplots(ALT_treat_plots, ncol=2, nrow=1)
+
+KM_ALT <- arrange_ggsurvplots(ALT_overall,KM_ALT_treat_combined, ncol=1, nrow=2)
+
+```
+
+
+# bar plot for patient numbers
+```{r bar_plots, echo=FALSE}
+overall <- denom[, .N, by=.(year)]
+names(overall)[2] <- "count"
+overall$info <- "Overall"
+treat <- denom[site_name!="Cambridge" & site_name!="Imperial", .N, by=.(year)]
+names(treat)[2] <- "count"
+treat$info <- "Treatment information available"
+bar_plot_data <- bind_rows(overall, treat)
+
+ bar_plot <- ggplot(data=bar_plot_data, aes(x=as.factor(year), y=count, fill=info)) +
+  geom_bar(stat="identity", position=position_dodge())
+bar_plot <- bar_plot + theme(axis.text.y=element_text(colour="black", size = 18), axis.text.x=element_text(colour="black", size = 18), text = element_text(size = 18), panel.grid.major = element_blank(), legend.key=element_blank(), legend.text=element_text(size=18),panel.grid.minor = element_blank(),
+                                                   panel.background = element_blank(), axis.line = element_line(colour = "black")) + scale_fill_grey(start = 0.8,
+  end = 0.93, labels=c("Overall", "Treatment information\navailable"))
+bar_plot <- bar_plot + labs(title="",x ="Number of patients", y = "Year", fill="") + geom_text(aes(label=count), size=6, position=position_dodge(width=0.9), vjust=-0.25)
+bar_plot
+
+ggsave("FigS1.pdf", width = 15, height = 12)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
